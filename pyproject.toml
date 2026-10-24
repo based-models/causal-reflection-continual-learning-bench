@@ -1,0 +1,27 @@
+[build-system]
+requires = ["setuptools>=69"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "causal-reflection-continual-learning-bench"
+version = "0.1.0"
+description = "Codebase Adaptation on Continual Learning Bench through the causal-reflection API"
+readme = "README.md"
+requires-python = ">=3.13"
+dependencies = [
+  "cl-benchmark @ git+https://github.com/pgasawa/continual-learning-bench.git@5f8c50eb1e84b2eda2ef4faff757dfc812a0ea26",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+dev = ["pytest>=8.0"]
+
+[project.scripts]
+cr-clbench = "cr_clbench.cli:main"
+
+[tool.setuptools.packages.find]
+include = ["cr_clbench*"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["."]

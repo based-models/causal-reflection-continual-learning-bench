@@ -1,0 +1,19 @@
+{
+  "system": {
+    "name": "icl",
+    "params": {
+      "model": "openai/glm-5.3-flash:causal-reflection",
+      "provider_mode": "litellm_chat",
+      "max_tokens": 913408,
+      "name": "ICL + GLM 5.3 Flash"
+    }
+  },
+  "task": {
+    "name": "codebase_adaptation",
+    "params": {
+      "schedule": "quick_test"
+    }
+  },
+  "runs": 1,
+  "max_workers": 1
+}

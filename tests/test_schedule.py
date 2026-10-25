@@ -1,5 +1,6 @@
 """quick_test is visible to the stock codebase task loader."""
 
+import inspect
 import json
 import sys
 import types
@@ -47,6 +48,14 @@ def test_database_quick_test_is_one_question_and_turns_drift_off():
     assert task._schema_drift_enabled is False
     assert task.num_questions == 1
     assert task.num_instances == 1
+
+
+def test_database_smoke_keeps_the_schedule_parameter():
+    """The bench reads task params from the init signature. A wrapper must keep it."""
+    install_runtime()
+    from src.tasks.database_exploration.task import DatabaseExploration
+
+    assert "schedule" in inspect.signature(DatabaseExploration.__init__).parameters
 
 
 def test_database_smoke_reports_one_instance_from_init(monkeypatch, tmp_path: Path):

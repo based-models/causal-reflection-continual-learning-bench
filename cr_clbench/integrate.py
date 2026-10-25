@@ -10,6 +10,7 @@ from __future__ import annotations
 import inspect
 import os
 import sys
+from functools import wraps
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from contextvars import ContextVar
@@ -139,6 +140,7 @@ def _install_database_smoke() -> None:
     original_init = DatabaseExploration.__init__
     if not getattr(original_init, "_cr_smoke_init", False):
 
+        @wraps(original_init)
         def wrapped_init(self: Any, *args: Any, **kwargs: Any) -> None:
             original_init(self, *args, **kwargs)
             apply_database_smoke(self)

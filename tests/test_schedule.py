@@ -49,6 +49,47 @@ def test_database_quick_test_is_one_question_and_turns_drift_off():
     assert task.num_instances == 1
 
 
+def test_database_smoke_reports_one_instance_from_init(monkeypatch, tmp_path: Path):
+    """The benchmark counts baseline workers from num_instances during init."""
+    variant_dir = (
+        tmp_path / "checkout" / "src" / "tasks" / "database_exploration" / "variants"
+    )
+    variant_dir.mkdir(parents=True)
+    (variant_dir / "schema_drift.json").write_text(
+        json.dumps(
+            {
+                "id": "schema_drift",
+                "display_name": "Schema Drift",
+                "description": "Forty questions unless the smoke overrides it.",
+                "defaults": {
+                    "db_path": "data/database_exploration/products.db",
+                    "questions_path": "data/database_exploration/questions.json",
+                    "num_questions": 40,
+                    "max_queries_per_question": 15,
+                    "seed": 42,
+                },
+                "config": {
+                    "schema_drift": True,
+                    "pre_drift_count": 20,
+                    "post_drift_count": 20,
+                },
+            }
+        )
+    )
+    monkeypatch.setenv("CLBENCH_ROOT", str(tmp_path / "checkout"))
+    install_runtime()
+    import src.tasks.variants as variants_mod
+
+    variants_mod.list_task_variants.cache_clear()
+    from src.tasks.database_exploration.task import DatabaseExploration
+
+    task = DatabaseExploration(schedule="quick_test")
+    assert task.schedule == "quick_test"
+    assert task.num_instances == 1
+    assert task.num_questions == 1
+    assert task._schema_drift_enabled is False
+
+
 def test_scope_task_name_prefers_the_task_object_over_a_missing_log():
     class _Database:
         pass

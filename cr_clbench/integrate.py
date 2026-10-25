@@ -136,6 +136,16 @@ def _install_quick_test() -> None:
 def _install_database_smoke() -> None:
     from src.tasks.database_exploration.task import DatabaseExploration
 
+    original_init = DatabaseExploration.__init__
+    if not getattr(original_init, "_cr_smoke_init", False):
+
+        def wrapped_init(self: Any, *args: Any, **kwargs: Any) -> None:
+            original_init(self, *args, **kwargs)
+            apply_database_smoke(self)
+
+        wrapped_init._cr_smoke_init = True  # type: ignore[attr-defined]
+        DatabaseExploration.__init__ = wrapped_init  # type: ignore[method-assign]
+
     current = DatabaseExploration.build_canonical_run_state
     if getattr(current, "_cr_smoke", False):
         return

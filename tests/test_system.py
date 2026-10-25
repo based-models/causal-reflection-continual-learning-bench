@@ -9,7 +9,7 @@ from src.interface import Observation, Query
 
 from cr_clbench.integrate import override_scope
 from cr_clbench.sessions import RunScope
-from cr_clbench.stop import CausalReflectionStop, ResponseFormatStop
+from cr_clbench.stop import CausalReflectionStop, CommandParseStop, ResponseFormatStop
 from cr_clbench.system import CausalReflectionICL
 
 
@@ -157,6 +157,101 @@ def test_missing_response_format_stops(monkeypatch):
     system = CausalReflectionICL()
     with pytest.raises(ResponseFormatStop):
         system.respond(_query("jazzband__tablib-534"))
+
+
+class _QueryAction(BaseModel):
+    action: str
+    content: str
+
+
+def _query_completion(body: str) -> litellm.ModelResponse:
+    return litellm.ModelResponse(
+        id="cmpl-query",
+        model="openai/glm-5.3-flash:causal-reflection",
+        choices=[{"message": {"role": "assistant", "content": body}}],
+        usage={"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+    )
+
+
+def test_query_turns_keep_the_sql_result_and_do_not_promote_a_runner_footer(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    calls: list[dict] = []
+
+    def fake_completion(**kwargs):
+        calls.append(kwargs)
+        return _query_completion('{"action": "QUERY", "content": ".tables"}')
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="database_exploration",
+    )
+    observation = ("x" * 2100) + "\n1 failed in 0.15s"
+    with override_scope(scope):
+        system.respond(
+            Query(
+                prompt="Question 1/1\n\nHow many?",
+                response_schema=_QueryAction,
+                instance_id="1",
+                instance_index=0,
+            )
+        )
+        system.observe(Observation(content=observation, instance_complete=False))
+        system.respond(
+            Query(
+                prompt="Question 1/1\n\nHow many?",
+                response_schema=_QueryAction,
+                instance_id="1",
+                instance_index=0,
+            )
+        )
+    assert calls[1]["extra_headers"]["X-Workload"] == "query"
+    assert calls[1]["extra_headers"]["X-Session-Id"] == (
+        "clbench-database-glm-stateful-r1-database_exploration"
+    )
+    message = calls[1]["messages"][-1]["content"]
+    assert message.startswith("x")
+    assert "1 failed in 0.15s" in message
+    assert message.endswith("How many?")
+    assert calls[1]["response_format"] is _QueryAction
+
+
+def test_empty_query_sql_stops(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _query_completion('{"action": "QUERY", "content": "  "}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="database_exploration",
+    )
+    with override_scope(scope):
+        with pytest.raises(CommandParseStop, match="SQL"):
+            system.respond(
+                Query(
+                    prompt="Question 1/1",
+                    response_schema=_QueryAction,
+                    instance_id="1",
+                    instance_index=0,
+                )
+            )
 
 
 def test_auto_provider_mode_is_rejected():

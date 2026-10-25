@@ -44,6 +44,22 @@ Stop the run when:
 
 Leave the causal prefix on. `monthly spend cap reached` stops the run as well. That is `MONTHLY_SPEND_CAP_USD` on the API VM, currently $10, and it can fire during quick_test.
 
+## Database Exploration
+
+| Item | This run | Model API |
+|---|---|---|
+| Workload | `X-Workload: query` | `signal_set_for("query")` |
+| Action | `{"action":"QUERY"\|"ANSWER","content":"..."}` | `query_choice_key` reads `QUERY` only. `ANSWER` stores nothing |
+| User message | SQL result, then the next question, in one turn | `_query_payload` classifies the result and stops at `Question N/M` or `NOTICE:` |
+| Schema edge | `.tables`, `.schema`, `PRAGMA`, `sqlite_master` | `schema_observed` → `causes_success` on the first observation |
+| Data query | `SELECT` / `WITH` | No edge until the same family repeats, then `failed_to_progress` |
+| Failure | a line matching `ERROR:` or `timeout` | `query_failed` → `causes_failure`. `no such table:` attaches to the next query of that name |
+| Drift | the task's `NOTICE: ... schema or contents may have changed` | `query_schema_changed` drops `tables`, `schema`, and `missing` edges before the next question |
+
+Sessions use the `database` slug: `clbench-database-glm-stateful-r{run}-database_exploration`. They do not resume a codebase graph. The result-prefix split and the stock migration sentence live in the API repo. Deploy that encoder before a schema-drift run. The one-question smoke does not cross the migration.
+
+`quick_test` is one question, `questions.json` id `1`, with schema drift turned off before load. The variant's own defaults would otherwise run 20 + 20. `default` is the stock schema-drift schedule. `clbench setup database_exploration` downloads `products.db` and `products_drifted.db`.
+
 ## Dashboard check
 
 After smoke, the coding workload is on the session, `cost_usd` is set in the trace, the stateful rollout is one session, each stateless instance is its own session, and at least one edge follows a user message that contains a pytest, vitest, or Go footer.

@@ -1,11 +1,14 @@
-"""Model, price, and context-budget constants for the GLM coding run."""
+"""Model, price, and context-budget constants for the GLM runs."""
 
 API_BASE = "https://api.basedmodels.com/v1"
 PUBLIC_MODEL_ID = "glm-5.3-flash:causal-reflection"
 LITELLM_MODEL = f"openai/{PUBLIC_MODEL_ID}"
 LEADERBOARD_NAME = "ICL + GLM 5.3 Flash"
 TASK_NAME = "codebase_adaptation"
+DATABASE_TASK = "database_exploration"
+SUPPORTED_TASKS = (TASK_NAME, DATABASE_TASK)
 WORKLOAD = "coding"
+QUERY_WORKLOAD = "query"
 
 # Fireworks lists GLM 5.3 Flash at 1,048,576 context tokens and 131,072 output tokens.
 # https://fireworks.ai/models/fireworks/glm-5p3-flash

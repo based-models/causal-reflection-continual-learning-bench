@@ -7,8 +7,12 @@ from pathlib import Path
 
 import pytest
 
-from cr_clbench.integrate import install_runtime, task_data_dir
-from cr_clbench.schedule import SMOKE_INSTANCE_ID
+from cr_clbench.integrate import install_runtime, scope_task_name, task_data_dir
+from cr_clbench.schedule import (
+    DATABASE_SMOKE_QUESTION_ID,
+    SMOKE_INSTANCE_ID,
+    apply_database_smoke,
+)
 
 
 def _assert_smoke(spec) -> None:
@@ -18,6 +22,48 @@ def _assert_smoke(spec) -> None:
     assert spec.run_defaults.max_workers == 1
     assert spec.stages[0].schedule["instance_ids"] == [SMOKE_INSTANCE_ID]
     assert SMOKE_INSTANCE_ID == "jazzband__tablib-534"
+
+
+def test_database_quick_test_is_one_question_and_turns_drift_off():
+    install_runtime()
+    import src.tasks.schedules as schedules_mod
+
+    spec = schedules_mod.get_task_schedule("database_exploration", "quick_test")
+    assert spec.id == "quick_test"
+    assert spec.run_defaults is not None
+    assert spec.run_defaults.runs == 1
+    assert spec.run_defaults.max_workers == 1
+    assert spec.stages[0].variant == "schema_drift"
+    assert DATABASE_SMOKE_QUESTION_ID == "1"
+
+    class _Task:
+        schedule = "quick_test"
+        _schema_drift_enabled = True
+        num_questions = 40
+        num_instances = 40
+
+    task = _Task()
+    apply_database_smoke(task)
+    assert task._schema_drift_enabled is False
+    assert task.num_questions == 1
+    assert task.num_instances == 1
+
+
+def test_scope_task_name_prefers_the_task_object_over_a_missing_log():
+    class _Database:
+        pass
+
+    import src.registry as registry
+
+    previous = registry.TASKS_REGISTRY.get("database_exploration")
+    registry.TASKS_REGISTRY["database_exploration"] = _Database
+    try:
+        assert scope_task_name(_Database(), None) == "database_exploration"
+    finally:
+        if previous is None:
+            registry.TASKS_REGISTRY.pop("database_exploration", None)
+        else:
+            registry.TASKS_REGISTRY["database_exploration"] = previous
 
 
 def test_quick_test_resolves_from_the_schedule_module():

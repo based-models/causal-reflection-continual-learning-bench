@@ -18,7 +18,7 @@ from .constants import (
 from .integrate import current_scope, install_runtime
 from .litellm_bridge import completion_scope
 from .pricing import register_prices
-from .sessions import causal_headers, session_kind
+from .sessions import causal_headers, session_kind, workload_for
 from .stop import (
     CausalReflectionStop,
     CommandParseStop,
@@ -85,10 +85,15 @@ class CausalReflectionICL(ICLSystem):
             )
         pending = self._pending_observation
         self._pending_observation = ""
+        task_id = self._task_id()
         if pending:
             query = replace(
                 query,
-                prompt=merge_user_turn(pending, query.prompt or ""),
+                prompt=merge_user_turn(
+                    pending,
+                    query.prompt or "",
+                    promote_footer=workload_for(task_id) != "query",
+                ),
             )
         headers = self._headers_for(query)
         with completion_scope(
@@ -110,12 +115,7 @@ class CausalReflectionICL(ICLSystem):
                 "ICL did not send response_format on the chat completion. "
                 "Stopping. Leave the causal prefix on."
             )
-        command = getattr(response.action, "command", None)
-        if not isinstance(command, str) or not command.strip():
-            raise CommandParseStop(
-                "The parsed action has no command string. "
-                "Stopping. Leave the causal prefix on."
-            )
+        self._require_task_action(response, task_id)
         metadata = dict(response.metadata or {})
         metadata["causal_reflection"] = {
             "run_id": headers["X-Run-Id"],
@@ -134,9 +134,10 @@ class CausalReflectionICL(ICLSystem):
     ) -> None:
         """Hold the raw output for the next user message.
 
-        Stock ICL appends ``FEEDBACK:`` as its own user turn. The coding
-        encoder then pairs the command with the following prompt instead of
-        the runner output. The output is sent unchanged on the next respond.
+        Stock ICL appends ``FEEDBACK:`` as its own user turn. The encoder
+        pairs the assistant action with the user message directly after it, so
+        a second user message hides the runner output or the SQL result. The
+        output is sent unchanged on the next respond.
         """
         del next_query
         content = (observation.content or "").strip()
@@ -153,10 +154,43 @@ class CausalReflectionICL(ICLSystem):
         payload["leaderboard_name"] = LEADERBOARD_NAME
         return payload
 
+    def _task_id(self) -> str:
+        scope = current_scope()
+        if scope is None or not scope.task_name:
+            return TASK_NAME
+        return scope.task_name
+
+    def _require_task_action(self, response: Response, task_id: str) -> None:
+        if workload_for(task_id) == "query":
+            action = getattr(response.action, "action", None)
+            content = getattr(response.action, "content", None)
+            if not isinstance(action, str) or action.strip().upper() not in {
+                "QUERY",
+                "ANSWER",
+            }:
+                raise CommandParseStop(
+                    "The parsed action is not QUERY or ANSWER. "
+                    "Stopping. Leave the causal prefix on."
+                )
+            if not isinstance(content, str) or (
+                action.strip().upper() == "QUERY" and not content.strip()
+            ):
+                raise CommandParseStop(
+                    "QUERY has no SQL content. "
+                    "Stopping. Leave the causal prefix on."
+                )
+            return
+        command = getattr(response.action, "command", None)
+        if not isinstance(command, str) or not command.strip():
+            raise CommandParseStop(
+                "The parsed action has no command string. "
+                "Stopping. Leave the causal prefix on."
+            )
+
     def _headers_for(self, query: Query) -> dict[str, str]:
         scope = current_scope()
         kind = session_kind(scope)
-        task_id = TASK_NAME if scope is None else scope.task_name
+        task_id = self._task_id()
         run_index = None if scope is None else scope.run_index
         return causal_headers(
             kind=kind,

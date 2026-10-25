@@ -56,9 +56,12 @@ def promote_runner_footer(text: str) -> str:
     return f"{footer}\n\n{raw}"
 
 
-def merge_user_turn(observation: str, prompt: str) -> str:
+def merge_user_turn(
+    observation: str, prompt: str, *, promote_footer: bool = True
+) -> str:
     """One user turn: raw runner output, then the task's next prompt."""
-    body = promote_runner_footer(observation).strip()
+    body = promote_runner_footer(observation) if promote_footer else (observation or "")
+    body = body.strip()
     follow = (prompt or "").strip()
     if body and follow:
         return f"{body}\n\n{follow}"

@@ -10,6 +10,7 @@ from cr_clbench.sessions import (
     causal_headers,
     run_label,
     session_kind,
+    workload_for,
 )
 
 
@@ -58,6 +59,33 @@ def test_stateless_session_includes_the_instance_and_stays_on_r0():
     )
     assert other != session_id
     assert other.endswith("jd__tenacity-597")
+
+
+def test_database_sessions_use_the_query_workload_and_do_not_reuse_codebase_ids():
+    run_id, session_id = build_ids(
+        kind="stateful",
+        run_index=0,
+        task_id="database_exploration",
+        instance_id=None,
+    )
+    _, stateless = build_ids(
+        kind="stateless",
+        run_index=None,
+        task_id="database_exploration",
+        instance_id="1",
+    )
+    assert run_id == "clbench-database-glm-r1"
+    assert session_id == "clbench-database-glm-stateful-r1-database_exploration"
+    assert stateless == "clbench-database-glm-stateless-r0-database_exploration-1"
+    assert "codebase" not in session_id
+    assert workload_for("database_exploration") == "query"
+    headers = causal_headers(
+        kind="stateful",
+        run_index=0,
+        task_id="database_exploration",
+        instance_id=None,
+    )
+    assert headers["X-Workload"] == "query"
 
 
 def test_headers_always_carry_session_run_and_workload():

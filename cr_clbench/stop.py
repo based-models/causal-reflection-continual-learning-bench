@@ -16,7 +16,11 @@ class ResponseFormatStop(CausalReflectionStop):
 
 
 class CommandParseStop(CausalReflectionStop):
-    """The completion did not parse as ``{"thought": "...", "command": "..."}``."""
+    """The completion did not match the task action schema.
+
+    Codebase Adaptation requires ``command``. Database Exploration requires
+    ``action`` of ``QUERY`` or ``ANSWER`` and a ``content`` string.
+    """
 
 
 class SpendCapStop(CausalReflectionStop):
@@ -67,8 +71,9 @@ def classify_stop(exc: BaseException) -> CausalReflectionStop | None:
         )
     if types & {"ValidationError", "JSONDecodeError"}:
         return CommandParseStop(
-            "The model reply did not parse as "
-            '{"thought": "...", "command": "..."}. '
+            "The model reply did not match the task response schema. "
+            "Codebase Adaptation expects a command string. "
+            "Database Exploration expects action QUERY or ANSWER. "
             "Stopping. Leave the causal prefix on.\n"
             f"{exc}"
         )

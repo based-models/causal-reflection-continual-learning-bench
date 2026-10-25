@@ -1,4 +1,4 @@
-"""Session ids for the Codebase Adaptation coding workload.
+"""Session ids for one domain.
 
 A session starts empty and still receives the causal prefix and readout tail.
 The difference between the two phases is whether that graph is kept:
@@ -6,7 +6,8 @@ The difference between the two phases is whether that graph is kept:
 - stateful: one session for every instance of a rollout
 - stateless: one session per instance, cleared when the harness resets
 
-Codebase Adaptation does not share these ids with any other domain.
+Codebase Adaptation and Database Exploration do not share ids. Each domain
+has its own slug and workload.
 """
 
 from __future__ import annotations
@@ -15,7 +16,7 @@ import os
 import re
 from dataclasses import dataclass
 
-from .constants import TASK_NAME, WORKLOAD
+from .constants import DATABASE_TASK, QUERY_WORKLOAD, TASK_NAME, WORKLOAD
 
 _UNSAFE = re.compile(r"[\s,]+")
 
@@ -73,6 +74,20 @@ def run_tag() -> str:
     return sanitize_id(raw)
 
 
+def workload_for(task_id: str) -> str:
+    """Coding pack for shell tasks. Query pack for Database Exploration."""
+    if task_id == DATABASE_TASK:
+        return QUERY_WORKLOAD
+    return WORKLOAD
+
+
+def id_slug(task_id: str) -> str:
+    """Short id piece. The two domains must not resume each other's graphs."""
+    if task_id == DATABASE_TASK:
+        return "database"
+    return "codebase"
+
+
 def build_ids(
     *,
     kind: str,
@@ -85,16 +100,15 @@ def build_ids(
     tag = run_tag()
     suffix = f"-{tag}" if tag else ""
     task = sanitize_id(task_id)
-    run_id = f"clbench-codebase-glm-r{label}{suffix}"
+    slug = id_slug(task_id)
+    run_id = f"clbench-{slug}-glm-r{label}{suffix}"
     if kind == "stateful":
-        session_id = f"clbench-codebase-glm-stateful-r{label}{suffix}-{task}"
+        session_id = f"clbench-{slug}-glm-stateful-r{label}{suffix}-{task}"
         return run_id, session_id
     if not instance_id:
         raise ValueError("stateless session requires an instance id")
     instance = sanitize_id(instance_id)
-    session_id = (
-        f"clbench-codebase-glm-stateless-r{label}{suffix}-{task}-{instance}"
-    )
+    session_id = f"clbench-{slug}-glm-stateless-r{label}{suffix}-{task}-{instance}"
     return run_id, session_id
 
 
@@ -115,5 +129,5 @@ def causal_headers(
     return {
         "X-Session-Id": session_id,
         "X-Run-Id": run_id,
-        "X-Workload": WORKLOAD,
+        "X-Workload": workload_for(task_id),
     }

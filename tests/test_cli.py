@@ -30,10 +30,18 @@ def test_other_domains_are_rejected():
         _reject_other_domains(["run", "cohort_studies", "--system", "icl"])
 
 
+def test_database_exploration_config_is_accepted(tmp_path: Path):
+    path = tmp_path / "database.json"
+    path.write_text(
+        json.dumps({"task": {"name": "database_exploration", "params": {"schedule": "default"}}})
+    )
+    _reject_other_domains(["run", "--config", str(path)])
+
+
 def test_config_for_another_task_is_rejected(tmp_path: Path):
     path = tmp_path / "other.json"
     path.write_text(json.dumps({"task": {"name": "exploitable_poker"}}))
-    with pytest.raises(SystemExit, match="codebase_adaptation"):
+    with pytest.raises(SystemExit, match="Supported tasks"):
         _reject_other_domains(["run", "--config", str(path)])
 
 

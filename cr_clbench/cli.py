@@ -10,24 +10,35 @@ from pathlib import Path
 from .constants import (
     API_BASE,
     CONTEXT_BUDGET_TOKENS,
+    DATABASE_TASK,
     LEADERBOARD_NAME,
     LITELLM_MODEL,
     PUBLIC_MODEL_ID,
+    SUPPORTED_TASKS,
     TASK_NAME,
 )
-from .schedule import SMOKE_INSTANCE_ID
-from .sessions import build_ids
+from .schedule import DATABASE_SMOKE_QUESTION_ID, SMOKE_INSTANCE_ID
+from .sessions import build_ids, workload_for
 
 _OTHER_TASKS = {
     "exploitable_poker",
     "poker",
     "sales_prediction",
     "cohort_studies",
-    "database_exploration",
     "blind_spectrum_monitoring",
 }
-_DATASET = Path("data/codebase_adaptation/final-dataset.jsonl")
-_NEEDS_DATASET = {"run", "smoke", "setup", "run-all"}
+_CODEBASE_DATASET = Path("data/codebase_adaptation/final-dataset.jsonl")
+_DATABASE_READY = (
+    Path("data/database_exploration/products.db"),
+    Path("data/database_exploration/products_drifted.db"),
+    Path("data/database_exploration/questions.json"),
+    Path("data/database_exploration/questions_post_drift.json"),
+)
+_DATABASE_SMOKE_READY = (
+    Path("data/database_exploration/products.db"),
+    Path("data/database_exploration/questions.json"),
+)
+_NEEDS_DATASET = {"run", "smoke"}
 
 
 def main(argv: list[str] | None = None) -> None:
@@ -44,7 +55,9 @@ def main(argv: list[str] | None = None) -> None:
         return
     if args[0] == "run-all":
         raise SystemExit(
-            "run-all scores every domain. This run is codebase_adaptation only."
+            "run-all scores every domain in one invocation. "
+            "Run codebase_adaptation and database_exploration separately, "
+            "then keep each viewer artifact for the submission."
         )
     _reject_other_domains(args)
     if args[0] in {"run", "smoke"}:
@@ -53,12 +66,8 @@ def main(argv: list[str] | None = None) -> None:
     root = (os.environ.get("CLBENCH_ROOT") or "").strip()
     if root:
         os.chdir(root)
-    if args[0] in _NEEDS_DATASET and not _DATASET.is_file():
-        raise SystemExit(
-            "Dataset data/codebase_adaptation/final-dataset.jsonl was not found "
-            "in the working directory. Clone continual-learning-bench at the "
-            "pinned SHA and set CLBENCH_ROOT to that checkout."
-        )
+    if args[0] in _NEEDS_DATASET:
+        _require_task_data(args)
     from src.registry import SYSTEMS_REGISTRY
 
     from .integrate import install_runtime
@@ -74,7 +83,7 @@ def main(argv: list[str] | None = None) -> None:
 
 def _print_help() -> None:
     print(
-        f"""cr-clbench — Codebase Adaptation through the causal-reflection API
+        f"""cr-clbench — Continual Learning Bench through the causal-reflection API
 
 Leaderboard name: {LEADERBOARD_NAME}
 Model: {PUBLIC_MODEL_ID}
@@ -84,41 +93,51 @@ Context budget: {CONTEXT_BUDGET_TOKENS} tokens
 
 Commands:
   cr-clbench run --config configs/codebase_glm_smoke.json
-  cr-clbench run --config configs/codebase_glm.json --runs 1 --max-workers 1
+  cr-clbench run --config configs/codebase_glm.json --runs 5
+  cr-clbench run --config configs/database_glm_smoke.json
+  cr-clbench run --config configs/database_glm.json --runs 1
+  cr-clbench run --config configs/database_glm.json --runs 5
   cr-clbench ids
 
-Set CRA_API_KEY. Set CLBENCH_ROOT to a checkout of continual-learning-bench
-when this repo is not already sitting on that dataset. The smoke schedule is
-quick_test: one tablib issue ({SMOKE_INSTANCE_ID}), one worker.
+Set CRA_API_KEY. Set CLBENCH_ROOT to a checkout of continual-learning-bench.
+Codebase smoke is quick_test on {SMOKE_INSTANCE_ID}. Database smoke is
+quick_test on question {DATABASE_SMOKE_QUESTION_ID}. Both use one worker.
+Database Exploration needs `clbench setup database_exploration` before a run.
 """
     )
 
 
 def _print_ids() -> None:
-    stateful_run, stateful_session = build_ids(
-        kind="stateful",
-        run_index=0,
-        task_id=TASK_NAME,
-        instance_id=None,
-    )
-    stateless_run, stateless_session = build_ids(
-        kind="stateless",
-        run_index=None,
-        task_id=TASK_NAME,
-        instance_id=SMOKE_INSTANCE_ID,
-    )
-    print(f"stateful X-Run-Id:     {stateful_run}")
-    print(f"stateful X-Session-Id: {stateful_session}")
-    print(f"stateless X-Run-Id:    {stateless_run}")
-    print(f"stateless X-Session-Id: {stateless_session}")
-    print("X-Workload: coding")
+    for task_id, instance_id in (
+        (TASK_NAME, SMOKE_INSTANCE_ID),
+        (DATABASE_TASK, DATABASE_SMOKE_QUESTION_ID),
+    ):
+        stateful_run, stateful_session = build_ids(
+            kind="stateful",
+            run_index=0,
+            task_id=task_id,
+            instance_id=None,
+        )
+        stateless_run, stateless_session = build_ids(
+            kind="stateless",
+            run_index=None,
+            task_id=task_id,
+            instance_id=instance_id,
+        )
+        print(task_id)
+        print(f"  stateful X-Run-Id:      {stateful_run}")
+        print(f"  stateful X-Session-Id:  {stateful_session}")
+        print(f"  stateless X-Run-Id:     {stateless_run}")
+        print(f"  stateless X-Session-Id: {stateless_session}")
+        print(f"  X-Workload: {workload_for(task_id)}")
 
 
 def _reject_other_domains(args: list[str]) -> None:
     for token in args:
         if token in _OTHER_TASKS:
             raise SystemExit(
-                f"{token} is outside this run. The scored task is {TASK_NAME}."
+                f"{token} is outside this run. "
+                f"Supported tasks: {', '.join(SUPPORTED_TASKS)}."
             )
     config = _config_path(args)
     if config is None or not config.is_file():
@@ -128,9 +147,10 @@ def _reject_other_domains(args: list[str]) -> None:
     except (OSError, json.JSONDecodeError) as exc:
         raise SystemExit(f"Could not read config {config}: {exc}") from exc
     task = (payload.get("task") or {}).get("name")
-    if task and task != TASK_NAME:
+    if task and task not in SUPPORTED_TASKS:
         raise SystemExit(
-            f"Config {config} selects task {task}. This run scores {TASK_NAME} only."
+            f"Config {config} selects task {task}. "
+            f"Supported tasks: {', '.join(SUPPORTED_TASKS)}."
         )
 
 
@@ -149,6 +169,44 @@ def _ensure_system(args: list[str]) -> list[str]:
                 f"This repo runs the ICL wrapper as --system icl. Got {name}."
             )
     return args
+
+
+def _selected_task(args: list[str]) -> tuple[str, str]:
+    """Return ``(task name, schedule id)`` from the config, else codebase."""
+    config = _config_path(args)
+    if config is None or not config.is_file():
+        for token in args:
+            if token in SUPPORTED_TASKS:
+                return token, ""
+        return TASK_NAME, ""
+    try:
+        payload = json.loads(config.read_text())
+    except (OSError, json.JSONDecodeError) as exc:
+        raise SystemExit(f"Could not read config {config}: {exc}") from exc
+    task = (payload.get("task") or {}).get("name") or TASK_NAME
+    schedule = str((payload.get("task") or {}).get("params", {}).get("schedule") or "")
+    return str(task), schedule
+
+
+def _require_task_data(args: list[str]) -> None:
+    task, schedule = _selected_task(args)
+    if task == DATABASE_TASK:
+        required = _DATABASE_SMOKE_READY if schedule == "quick_test" else _DATABASE_READY
+        missing = [path for path in required if not path.is_file()]
+        if missing:
+            names = ", ".join(str(path) for path in missing)
+            raise SystemExit(
+                f"Database Exploration is missing {names}. "
+                "From the continual-learning-bench checkout run "
+                "`clbench setup database_exploration`."
+            )
+        return
+    if not _CODEBASE_DATASET.is_file():
+        raise SystemExit(
+            "Dataset data/codebase_adaptation/final-dataset.jsonl was not found "
+            "in the working directory. Clone continual-learning-bench at the "
+            "pinned SHA and set CLBENCH_ROOT to that checkout."
+        )
 
 
 def _config_path(args: list[str]) -> Path | None:

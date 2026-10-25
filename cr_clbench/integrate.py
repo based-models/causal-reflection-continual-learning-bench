@@ -16,8 +16,9 @@ from contextvars import ContextVar
 from pathlib import Path
 from typing import Any
 
+from .constants import SUPPORTED_TASKS
 from .pricing import register_prices
-from .schedule import quick_test_schedule
+from .schedule import apply_database_smoke, database_quick_test_schedule, quick_test_schedule
 from .sessions import RunScope
 
 _SCOPE: ContextVar[RunScope | None] = ContextVar("cr_clbench_run_scope", default=None)
@@ -37,10 +38,11 @@ def override_scope(scope: RunScope | None) -> Iterator[None]:
 
 
 def install_runtime() -> None:
-    """Register prices, the smoke schedule, and the run-scope hook."""
+    """Register prices, the smoke schedules, and the run-scope hook."""
     register_prices()
     _install_checkout_data()
     _install_quick_test()
+    _install_database_smoke()
     _install_run_scope_hook()
 
 
@@ -112,8 +114,10 @@ def _install_quick_test() -> None:
         original = current
 
         def wrapped(family: str, schedule_id: str) -> Any:
-            if family == "codebase_adaptation" and schedule_id == "quick_test":
+            if schedule_id == "quick_test" and family == "codebase_adaptation":
                 return quick_test_schedule()
+            if schedule_id == "quick_test" and family == "database_exploration":
+                return database_quick_test_schedule()
             return original(family, schedule_id)
 
         wrapped._cr_quick_test = True  # type: ignore[attr-defined]
@@ -121,11 +125,42 @@ def _install_quick_test() -> None:
 
     for module_name in (
         "src.tasks.codebase_adaptation.task",
+        "src.tasks.database_exploration.task",
         "src.cli",
     ):
         module = sys.modules.get(module_name)
         if module is not None and hasattr(module, "get_task_schedule"):
             module.get_task_schedule = wrapped
+
+
+def _install_database_smoke() -> None:
+    from src.tasks.database_exploration.task import DatabaseExploration
+
+    current = DatabaseExploration.build_canonical_run_state
+    if getattr(current, "_cr_smoke", False):
+        return
+
+    def wrapped(self: Any) -> None:
+        apply_database_smoke(self)
+        return current(self)
+
+    wrapped._cr_smoke = True  # type: ignore[attr-defined]
+    DatabaseExploration.build_canonical_run_state = wrapped  # type: ignore[method-assign]
+
+
+def scope_task_name(task: Any, logged: Any) -> str:
+    """Prefer the task object. Baseline workers do not bind a log task name."""
+    try:
+        from src.registry import TASKS_REGISTRY
+    except Exception:
+        TASKS_REGISTRY = {}
+    if task is not None:
+        for name, cls in TASKS_REGISTRY.items():
+            if isinstance(task, cls):
+                return name
+    if isinstance(logged, str) and logged.strip():
+        return logged.strip()
+    return SUPPORTED_TASKS[0]
 
 
 def _logged_value(key: str) -> Any:
@@ -151,15 +186,13 @@ def _install_run_scope_hook() -> None:
         run_index = _logged_value("run_index")
         if not isinstance(run_index, int):
             run_index = None
-        task_name = _logged_value("task")
-        if not isinstance(task_name, str) or not task_name.strip():
-            task_name = "codebase_adaptation"
+        task_name = scope_task_name(bound.arguments.get("task"), _logged_value("task"))
         token = _SCOPE.set(
             RunScope(
                 phase=phase,
                 reset_between_instances=reset_between,
                 run_index=run_index,
-                task_name=task_name.strip(),
+                task_name=task_name,
             )
         )
         try:

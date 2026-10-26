@@ -92,7 +92,7 @@ class CausalReflectionICL(ICLSystem):
                 prompt=merge_user_turn(
                     pending,
                     query.prompt or "",
-                    promote_footer=workload_for(task_id) != "query",
+                    promote_footer=workload_for(task_id) == "coding",
                 ),
             )
         headers = self._headers_for(query)
@@ -161,10 +161,12 @@ class CausalReflectionICL(ICLSystem):
         return scope.task_name
 
     def _require_task_action(self, response: Response, task_id: str) -> None:
-        if workload_for(task_id) == "query":
-            action = getattr(response.action, "action", None)
-            content = getattr(response.action, "content", None)
-            if not isinstance(action, str) or action.strip().upper() not in {
+        workload = workload_for(task_id)
+        action = response.action
+        if workload == "query":
+            name = getattr(action, "action", None)
+            content = getattr(action, "content", None)
+            if not isinstance(name, str) or name.strip().upper() not in {
                 "QUERY",
                 "ANSWER",
             }:
@@ -173,14 +175,35 @@ class CausalReflectionICL(ICLSystem):
                     "Stopping. Leave the causal prefix on."
                 )
             if not isinstance(content, str) or (
-                action.strip().upper() == "QUERY" and not content.strip()
+                name.strip().upper() == "QUERY" and not content.strip()
             ):
                 raise CommandParseStop(
                     "QUERY has no SQL content. "
                     "Stopping. Leave the causal prefix on."
                 )
             return
-        command = getattr(response.action, "command", None)
+        if workload == "forecast":
+            command = getattr(action, "command", None)
+            predictions = getattr(action, "predictions", None)
+            if isinstance(command, str) and command.strip():
+                return
+            if isinstance(predictions, list):
+                return
+            raise CommandParseStop(
+                "The parsed action has no command and no predictions list. "
+                "Stopping. Leave the causal prefix on."
+            )
+        if workload == "cohort":
+            if getattr(action, "tool_call", None) is not None:
+                return
+            fields = getattr(type(action), "model_fields", {})
+            if any(str(name).endswith("__s12") for name in fields):
+                return
+            raise CommandParseStop(
+                "The parsed action is not a cohort tool call or a survival submission. "
+                "Stopping. Leave the causal prefix on."
+            )
+        command = getattr(action, "command", None)
         if not isinstance(command, str) or not command.strip():
             raise CommandParseStop(
                 "The parsed action has no command string. "

@@ -254,6 +254,174 @@ def test_empty_query_sql_stops(monkeypatch):
             )
 
 
+class _ForecastCommand(BaseModel):
+    thought: str
+    command: str
+
+
+class _ForecastSubmission(BaseModel):
+    predictions: list[dict]
+
+
+class _CohortTool(BaseModel):
+    thought: str
+    tool_call: dict
+
+
+class _CohortSubmission(BaseModel):
+    cohort_01__s12: float
+    cohort_01__s24: float
+    cohort_01__s36: float
+
+
+def _json_completion(body: str) -> litellm.ModelResponse:
+    return litellm.ModelResponse(
+        id="cmpl-pack",
+        model="openai/glm-5.3-flash:causal-reflection",
+        choices=[{"message": {"role": "assistant", "content": body}}],
+        usage={"prompt_tokens": 100, "completion_tokens": 20, "total_tokens": 120},
+    )
+
+
+def test_forecast_keeps_shell_output_and_accepts_the_prediction_list(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    calls: list[dict] = []
+
+    def fake_completion(**kwargs):
+        calls.append(kwargs)
+        schema = kwargs.get("response_format")
+        if schema is _ForecastSubmission:
+            return _json_completion('{"predictions": []}')
+        return _json_completion('{"thought": "fit", "command": "python3 fit_panel.py"}')
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="sales_prediction",
+    )
+    observation = ("y" * 2100) + "\n1 failed in 0.15s"
+    with override_scope(scope):
+        system.respond(
+            Query(
+                prompt="Forecast 2027.",
+                response_schema=_ForecastCommand,
+                instance_id="sales_prediction:default:years:2027-2031",
+                instance_index=0,
+            )
+        )
+        system.observe(Observation(content=observation, instance_complete=False))
+        system.respond(
+            Query(
+                prompt="Provide your best predictions.",
+                response_schema=_ForecastSubmission,
+                instance_id="sales_prediction:default:years:2027-2031",
+                instance_index=0,
+            )
+        )
+    assert calls[0]["extra_headers"]["X-Workload"] == "forecast"
+    assert calls[0]["extra_headers"]["X-Session-Id"] == (
+        "clbench-sales-glm-stateful-r1-sales_prediction"
+    )
+    message = calls[1]["messages"][-1]["content"]
+    assert message.startswith("y")
+    assert message.index("1 failed in 0.15s") > 2000
+    assert message.endswith("Provide your best predictions.")
+
+
+def test_forecast_without_a_command_or_predictions_stops(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _json_completion('{"thought": "stuck"}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="sales_prediction",
+    )
+    with override_scope(scope):
+        with pytest.raises(CommandParseStop, match="predictions"):
+            system.respond(
+                Query(
+                    prompt="Forecast.",
+                    response_schema=_ForecastCommand,
+                    instance_id="year",
+                    instance_index=0,
+                )
+            )
+
+
+def test_cohort_tool_call_uses_the_cohort_header(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    calls: list[dict] = []
+
+    def fake_completion(**kwargs):
+        calls.append(kwargs)
+        if kwargs.get("response_format") is _CohortSubmission:
+            return _json_completion(
+                '{"cohort_01__s12": 0.8, "cohort_01__s24": 0.5, "cohort_01__s36": 0.3}'
+            )
+        return _json_completion(
+            '{"thought": "list columns", "tool_call": {"tool": "get_database_metadata"}}'
+        )
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="cohort_studies",
+    )
+    with override_scope(scope):
+        system.respond(
+            Query(
+                prompt="Study 1/20: HERALD Panel",
+                response_schema=_CohortTool,
+                instance_id="cohort_studies:herald_suburban",
+                instance_index=0,
+            )
+        )
+        system.observe(
+            Observation(content="=== Columns ===\n  age: Patient age  units=years", instance_complete=False)
+        )
+        system.respond(
+            Query(
+                prompt="Provide your survival estimates for all 36 cohorts.",
+                response_schema=_CohortSubmission,
+                instance_id="cohort_studies:herald_suburban",
+                instance_index=0,
+            )
+        )
+    assert calls[1]["extra_headers"]["X-Workload"] == "cohort"
+    assert calls[1]["extra_headers"]["X-Session-Id"] == (
+        "clbench-cohort-glm-stateful-r1-cohort_studies"
+    )
+    message = calls[1]["messages"][-1]["content"]
+    assert message.startswith("=== Columns ===")
+    assert message.endswith("all 36 cohorts.")
+
+
 def test_auto_provider_mode_is_rejected():
     with pytest.raises(ValueError, match="litellm_chat"):
         CausalReflectionICL(provider_mode="auto")

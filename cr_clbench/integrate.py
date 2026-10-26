@@ -19,7 +19,15 @@ from typing import Any
 
 from .constants import SUPPORTED_TASKS
 from .pricing import register_prices
-from .schedule import apply_database_smoke, database_quick_test_schedule, quick_test_schedule
+from .schedule import (
+    apply_database_smoke,
+    apply_sales_smoke,
+    cohort_quick_test_schedule,
+    cohort_smoke_arguments,
+    database_quick_test_schedule,
+    quick_test_schedule,
+    sales_quick_test_schedule,
+)
 from .sessions import RunScope
 
 _SCOPE: ContextVar[RunScope | None] = ContextVar("cr_clbench_run_scope", default=None)
@@ -44,6 +52,8 @@ def install_runtime() -> None:
     _install_checkout_data()
     _install_quick_test()
     _install_database_smoke()
+    _install_sales_runtime()
+    _install_cohort_runtime()
     _install_run_scope_hook()
 
 
@@ -119,6 +129,10 @@ def _install_quick_test() -> None:
                 return quick_test_schedule()
             if schedule_id == "quick_test" and family == "database_exploration":
                 return database_quick_test_schedule()
+            if schedule_id == "quick_test" and family == "sales_prediction":
+                return sales_quick_test_schedule()
+            if schedule_id == "quick_test" and family == "cohort_studies":
+                return cohort_quick_test_schedule()
             return original(family, schedule_id)
 
         wrapped._cr_quick_test = True  # type: ignore[attr-defined]
@@ -127,6 +141,8 @@ def _install_quick_test() -> None:
     for module_name in (
         "src.tasks.codebase_adaptation.task",
         "src.tasks.database_exploration.task",
+        "src.tasks.sales_prediction.task",
+        "src.tasks.cohort_studies.task",
         "src.cli",
     ):
         module = sys.modules.get(module_name)
@@ -158,6 +174,141 @@ def _install_database_smoke() -> None:
 
     wrapped._cr_smoke = True  # type: ignore[attr-defined]
     DatabaseExploration.build_canonical_run_state = wrapped  # type: ignore[method-assign]
+
+
+def _checkout_file(family: str, name: str) -> Path | None:
+    """A data file in the continual-learning-bench checkout, if it is there."""
+    roots: list[Path] = []
+    env = (os.environ.get("CLBENCH_ROOT") or "").strip()
+    if env:
+        roots.append(Path(env))
+    cwd = Path.cwd()
+    if cwd not in roots:
+        roots.append(cwd)
+    for root in roots:
+        candidate = root / "data" / family / name
+        if candidate.is_file():
+            return candidate
+    return None
+
+
+def _install_sales_runtime() -> None:
+    """Point the frozen corpus at the checkout, and keep smoke to one year."""
+    try:
+        import src.tasks.sales_prediction.corpus as corpus
+        import src.tasks.sales_prediction.task as sales_task
+    except Exception:
+        return
+
+    packaged = corpus.DATA_DIR / "sales_lifecycle_panel.jsonl"
+    checkout = _checkout_file("sales_prediction", "sales_lifecycle_panel.jsonl")
+    if not packaged.is_file() and checkout is not None:
+        corpus.DATA_DIR = checkout.parent
+
+    current_id = sales_task._corpus_id_for_schedule
+    if not getattr(current_id, "_cr_sales_corpus", False):
+
+        def corpus_id(schedule: str | None) -> str | None:
+            if schedule == "quick_test":
+                return "sales_lifecycle"
+            return current_id(schedule)
+
+        corpus_id._cr_sales_corpus = True  # type: ignore[attr-defined]
+        sales_task._corpus_id_for_schedule = corpus_id
+
+    original_init = sales_task.SalesPredictionTask.__init__
+    if not getattr(original_init, "_cr_sales_init", False):
+
+        @wraps(original_init)
+        def wrapped_init(self: Any, *args: Any, **kwargs: Any) -> None:
+            original_init(self, *args, **kwargs)
+            apply_sales_smoke(self)
+
+        wrapped_init._cr_sales_init = True  # type: ignore[attr-defined]
+        sales_task.SalesPredictionTask.__init__ = wrapped_init  # type: ignore[method-assign]
+
+    current = sales_task.SalesPredictionTask.build_canonical_run_state
+    if getattr(current, "_cr_sales_build", False):
+        return
+
+    def wrapped_build(self: Any) -> None:
+        current(self)
+        apply_sales_smoke(self)
+
+    wrapped_build._cr_sales_build = True  # type: ignore[attr-defined]
+    sales_task.SalesPredictionTask.build_canonical_run_state = wrapped_build  # type: ignore[method-assign]
+
+
+def _install_cohort_runtime() -> None:
+    """Find the frozen studies, and make smoke the first default instance."""
+    try:
+        import src.tasks.cohort_studies.task as cohort_task
+    except Exception:
+        return
+
+    _redirect_cohort_schedule_open(cohort_task)
+    _redirect_cohort_dataset(cohort_task)
+
+    original_init = cohort_task.CohortStudiesTask.__init__
+    if getattr(original_init, "_cr_cohort_init", False):
+        return
+
+    @wraps(original_init)
+    def wrapped_init(self: Any, *args: Any, **kwargs: Any) -> None:
+        updated, smoke = cohort_smoke_arguments(kwargs)
+        original_init(self, *args, **updated)
+        if not smoke:
+            return
+        self.num_instances = 1
+        if getattr(self, "instances", None):
+            self.instances = list(self.instances)[:1]
+
+    wrapped_init._cr_cohort_init = True  # type: ignore[attr-defined]
+    cohort_task.CohortStudiesTask.__init__ = wrapped_init  # type: ignore[method-assign]
+
+
+def _redirect_cohort_dataset(cohort_task: Any) -> None:
+    current = cohort_task._default_dataset_dir
+    if getattr(current, "_cr_cohort_data", False):
+        return
+
+    def dataset_dir(schedule_id: str = "default") -> Path:
+        packaged = current(schedule_id)
+        if (packaged / "metadata.json").is_file():
+            return packaged
+        checkout = _checkout_file("cohort_studies", f"{schedule_id}/metadata.json")
+        if checkout is not None:
+            return checkout.parent
+        return packaged
+
+    dataset_dir._cr_cohort_data = True  # type: ignore[attr-defined]
+    cohort_task._default_dataset_dir = dataset_dir
+
+
+def _redirect_cohort_schedule_open(cohort_task: Any) -> None:
+    """The task opens ``schedules/<id>.json`` beside the installed module.
+
+    A non-editable install drops that file. The checkout still has it.
+    """
+    current_open = getattr(cohort_task, "open", open)
+    if getattr(current_open, "_cr_cohort_open", False):
+        return
+    original_open = current_open
+
+    def open_schedule(file: Any, *args: Any, **kwargs: Any) -> Any:
+        path = Path(file)
+        if (
+            path.name.endswith(".json")
+            and path.parent.name == "schedules"
+            and not path.is_file()
+        ):
+            checkout = _checkout_data_dir("cohort_studies", "schedules")
+            if checkout is not None and (checkout / path.name).is_file():
+                file = checkout / path.name
+        return original_open(file, *args, **kwargs)
+
+    open_schedule._cr_cohort_open = True  # type: ignore[attr-defined]
+    cohort_task.open = open_schedule
 
 
 def scope_task_name(task: Any, logged: Any) -> str:

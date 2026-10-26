@@ -9,11 +9,13 @@ from pathlib import Path
 
 from .constants import (
     API_BASE,
+    COHORT_TASK,
     CONTEXT_BUDGET_TOKENS,
     DATABASE_TASK,
     LEADERBOARD_NAME,
     LITELLM_MODEL,
     PUBLIC_MODEL_ID,
+    SALES_TASK,
     SUPPORTED_TASKS,
     TASK_NAME,
 )
@@ -23,8 +25,6 @@ from .sessions import build_ids, workload_for
 _OTHER_TASKS = {
     "exploitable_poker",
     "poker",
-    "sales_prediction",
-    "cohort_studies",
     "blind_spectrum_monitoring",
 }
 _CODEBASE_DATASET = Path("data/codebase_adaptation/final-dataset.jsonl")
@@ -37,6 +37,17 @@ _DATABASE_READY = (
 _DATABASE_SMOKE_READY = (
     Path("data/database_exploration/products.db"),
     Path("data/database_exploration/questions.json"),
+)
+_SALES_CORPUS = (
+    Path("data/sales_prediction/sales_lifecycle_panel.jsonl"),
+    Path("data/sales_prediction/sales_lifecycle_metadata.json"),
+    Path("data/sales_prediction/furniture.json"),
+    Path("data/sales_prediction/locations.json"),
+)
+_COHORT_READY = (
+    Path("data/cohort_studies/default/metadata.json"),
+    Path("data/cohort_studies/default/ground_truth.json"),
+    Path("data/cohort_studies/default/dbs/herald_suburban.db"),
 )
 _NEEDS_DATASET = {"run", "smoke"}
 
@@ -56,7 +67,7 @@ def main(argv: list[str] | None = None) -> None:
     if args[0] == "run-all":
         raise SystemExit(
             "run-all scores every domain in one invocation. "
-            "Run codebase_adaptation and database_exploration separately, "
+            "Run each domain separately, "
             "then keep each viewer artifact for the submission."
         )
     _reject_other_domains(args)
@@ -97,12 +108,21 @@ Commands:
   cr-clbench run --config configs/database_glm_smoke.json
   cr-clbench run --config configs/database_glm.json --runs 1
   cr-clbench run --config configs/database_glm.json --runs 5
+  cr-clbench run --config configs/sales_glm_smoke.json
+  cr-clbench run --config configs/sales_glm.json --runs 1
+  cr-clbench run --config configs/sales_glm.json --runs 5
+  cr-clbench run --config configs/cohort_glm_smoke.json
+  cr-clbench run --config configs/cohort_glm.json --runs 1
+  cr-clbench run --config configs/cohort_glm.json --runs 5
   cr-clbench ids
 
 Set CRA_API_KEY. Set CLBENCH_ROOT to a checkout of continual-learning-bench.
 Codebase smoke is quick_test on {SMOKE_INSTANCE_ID}. Database smoke is
-quick_test on question {DATABASE_SMOKE_QUESTION_ID}. Both use one worker.
-Database Exploration needs `clbench setup database_exploration` before a run.
+quick_test on question {DATABASE_SMOKE_QUESTION_ID}. Sales smoke is the first
+two frozen lifecycle years. Cohort smoke is the first study of the default dataset.
+All of them use one worker.
+Database Exploration needs `clbench setup database_exploration`.
+Sales Prediction needs `clbench setup sales_prediction` to pull its Docker image.
 """
     )
 
@@ -111,6 +131,8 @@ def _print_ids() -> None:
     for task_id, instance_id in (
         (TASK_NAME, SMOKE_INSTANCE_ID),
         (DATABASE_TASK, DATABASE_SMOKE_QUESTION_ID),
+        (SALES_TASK, "sales_prediction:default:years:2027-2031"),
+        (COHORT_TASK, "cohort_studies:herald_suburban"),
     ):
         stateful_run, stateful_session = build_ids(
             kind="stateful",
@@ -201,12 +223,36 @@ def _require_task_data(args: list[str]) -> None:
                 "`clbench setup database_exploration`."
             )
         return
+    if task == SALES_TASK:
+        _require_files(
+            _SALES_CORPUS,
+            "Sales Prediction is missing {names}. "
+            "The frozen lifecycle corpus lives in the continual-learning-bench "
+            "checkout at data/sales_prediction/.",
+        )
+        return
+    if task == COHORT_TASK:
+        _require_files(
+            _COHORT_READY,
+            "Cohort Studies is missing {names}. "
+            "The frozen default dataset lives in the continual-learning-bench "
+            "checkout at data/cohort_studies/default/.",
+        )
+        return
     if not _CODEBASE_DATASET.is_file():
         raise SystemExit(
             "Dataset data/codebase_adaptation/final-dataset.jsonl was not found "
             "in the working directory. Clone continual-learning-bench at the "
             "pinned SHA and set CLBENCH_ROOT to that checkout."
         )
+
+
+def _require_files(required: tuple[Path, ...], message: str) -> None:
+    missing = [path for path in required if not path.is_file()]
+    if not missing:
+        return
+    names = ", ".join(str(path) for path in missing)
+    raise SystemExit(message.format(names=names))
 
 
 def _config_path(args: list[str]) -> Path | None:

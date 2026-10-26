@@ -19,7 +19,9 @@ class CommandParseStop(CausalReflectionStop):
     """The completion did not match the task action schema.
 
     Codebase Adaptation requires ``command``. Database Exploration requires
-    ``action`` of ``QUERY`` or ``ANSWER`` and a ``content`` string.
+    ``action`` of ``QUERY`` or ``ANSWER``. Sales Prediction requires ``command``
+    or a ``predictions`` list. Cohort Studies requires ``tool_call`` or the
+    flat survival submission.
     """
 
 
@@ -74,6 +76,8 @@ def classify_stop(exc: BaseException) -> CausalReflectionStop | None:
             "The model reply did not match the task response schema. "
             "Codebase Adaptation expects a command string. "
             "Database Exploration expects action QUERY or ANSWER. "
+            "Sales Prediction expects a command or a predictions list. "
+            "Cohort Studies expects a tool call or the survival submission. "
             "Stopping. Leave the causal prefix on.\n"
             f"{exc}"
         )

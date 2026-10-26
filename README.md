@@ -2,14 +2,16 @@
 
 Score **ICL + GLM 5.3 Flash** on [Continual Learning Bench](https://continual-learning-bench.com/) through the Based Models causal-reflection API. The harness is stock [continual-learning-bench](https://github.com/pgasawa/continual-learning-bench) at `5f8c50eb1e84b2eda2ef4faff757dfc812a0ea26`. This repo subclasses its ICL system. It does not copy ICL.
 
-The finished domains so far are Codebase Adaptation (`X-Workload: coding`) and Database Exploration (`X-Workload: query`). Poker, Sales, Cohort, and Spectrum stay out until their packs exist.
+The finished domains so far are Codebase Adaptation (`X-Workload: coding`), Database Exploration (`X-Workload: query`), Sales Prediction (`X-Workload: forecast`), and Cohort Studies (`X-Workload: cohort`). Poker and Spectrum stay out until their packs exist.
 
 The comparison is retained state under the same wrapper. A new session starts with an empty graph and still receives the causal prefix and readout tail. The stateful rollout keeps one session across instances. The stateless baseline starts a new session for every instance.
 
-| Phase | Harness | Codebase `X-Session-Id` | Database `X-Session-Id` |
-|---|---|---|---|
-| Stateful rollout | `reset_between_instances=False` | `clbench-codebase-glm-stateful-r{run}-codebase_adaptation` | `clbench-database-glm-stateful-r{run}-database_exploration` |
-| Stateless baseline | baseline phase, reset between instances | `clbench-codebase-glm-stateless-r0-codebase_adaptation-{instance_id}` | `clbench-database-glm-stateless-r0-database_exploration-{question_id}` |
+| Phase | Harness | Session id |
+|---|---|---|
+| Stateful rollout | `reset_between_instances=False` | `clbench-{slug}-glm-stateful-r{run}-{task}` |
+| Stateless baseline | baseline phase, reset between instances | `clbench-{slug}-glm-stateless-r0-{task}-{instance_id}` |
+
+`slug` is `codebase`, `database`, `sales`, or `cohort`. The task id is `codebase_adaptation`, `database_exploration`, `sales_prediction`, or `cohort_studies`.
 
 `{run}` is 1-based. Rollout repeat 0 is `r1`. The baseline is `r0`. A new rollout repeat gets a new session. Set `CLBENCH_RUN_TAG` when a repeated smoke should not resume an existing `r0` or `r1` graph.
 
@@ -17,11 +19,15 @@ Leaderboard name: **ICL + GLM 5.3 Flash**. Model id: `glm-5.3-flash:causal-refle
 
 ## What this run scores
 
-Codebase Adaptation and Database Exploration. Each domain is one `cr-clbench run`. `run-all` stays rejected: it would start every domain at once, and it does not adopt a trace that already finished.
+Codebase Adaptation, Database Exploration, Sales Prediction, and Cohort Studies. Each domain is one `cr-clbench run`. `run-all` stays rejected: it would start every domain at once, and it does not adopt a trace that already finished.
 
 The coding pack reads the assistant JSON `command` field as the shell command. An edge needs the next user message in that same session to contain a real runner footer: a pytest line such as `3 passed in 0.42s`, a vitest `Tests` line, or a Go `ok <pkg>` / `FAIL <pkg>` line. The wrapper keeps the environment's raw command output in that user message. A pipe, a trailing `&`, or `head`/`tail` on the command hides the runner result from the encoder.
 
 The query pack reads `{"action": "QUERY", "content": "<sql>"}`. `.tables`, `.schema`, and `PRAGMA` can record the schema. A repeated data query records no progress. `ANSWER` records nothing. The migration notice `schema or contents may have changed` drops schema edges. The wrapper keeps the SQL result, then the next question, in that one user message.
+
+The forecast pack reads a bash `command` during analysis and a `predictions` list at submission. A shell exit code is not an outcome. The score edge is attached when a later user message contains `Predictions recorded for year` or the `feedback_year` / `entries` JSON, and only if an earlier command was a `.py` or `.R` script or carried `--model`. `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT` does not replace that remembered script.
+
+The cohort pack reads the tool result in the user message. A `=== Columns ===` listing and a grouped `S(12m)=` table become edges. The KL section does not. `Report submitted for <STUDY>.` drops that study's column facts and stores nothing for the 108 survival numbers.
 
 ## Codebase Adaptation result to keep
 
@@ -44,9 +50,9 @@ The gzip is the summary a submission copies to `final_results/runs/<name>/tasks/
 | LiteLLM model | `openai/glm-5.3-flash:causal-reflection` |
 | `provider_mode` | `litellm_chat` |
 
-The bench's `auto` mode treats an `openai/` model as the OpenAI Responses API. This gateway implements chat completions, so the system forces `litellm_chat`. Thinking stays on. Calls do not send `reasoning_effort` or `chat_template_kwargs`. ICL's `response_format` is left in place. Codebase Adaptation's action schema is `{"thought": "...", "command": "<one bash command>"}`. Database Exploration's schema is `{"action": "QUERY"|"ANSWER", "content": "<sql or exact value>"}`.
+The bench's `auto` mode treats an `openai/` model as the OpenAI Responses API. This gateway implements chat completions, so the system forces `litellm_chat`. Thinking stays on. Calls do not send `reasoning_effort` or `chat_template_kwargs`. ICL's `response_format` is left in place. Codebase Adaptation's action schema is `{"thought": "...", "command": "<one bash command>"}`. Database Exploration's schema is `{"action": "QUERY"|"ANSWER", "content": "<sql or exact value>"}`. Sales Prediction uses the command schema, then a `predictions` list. Cohort Studies uses `{"thought", "tool_call"}`, then the flat survival fields.
 
-Every completion sends `X-Session-Id`, `X-Run-Id`, and `X-Workload` (`coding` or `query`), including after the API has frozen workload on the session. `X-Session-Id` is always set. A missing session id lets the API resume an older session by message-prefix match, and parallel work on one key can cross-wire.
+Every completion sends `X-Session-Id`, `X-Run-Id`, and `X-Workload` (`coding`, `query`, `forecast`, or `cohort`), including after the API has frozen workload on the session. `X-Session-Id` is always set. A missing session id lets the API resume an older session by message-prefix match, and parallel work on one key can cross-wire.
 
 Price registered for the model id the bench looks up, per million tokens: input `$0.15`, cached input `$0.03`, output `$0.50`. The bench reads `prompt_tokens`, `completion_tokens`, and `prompt_tokens_details.cached_tokens`. A missing cache count is 0. The ICL context budget is set to **913,408** tokens: GLM 5.3 Flash's 1,048,576 window, minus the 131,072 output cap and 4,096 tokens for the causal prefix and readout tail.
 
@@ -150,6 +156,59 @@ cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/dat
 ```
 
 `default` is schema drift: 20 questions, then the migration notice, then 20 questions on `products_drifted.db`. `max_workers` stays 1. Reusing a tag resumes that graph. The smoke session is `clbench-database-glm-stateful-r1-db-smoke-database_exploration`.
+
+## Sales Prediction
+
+Docker, one container at a time. Pull the image once, from the bench checkout:
+
+```bash
+cd "$CLBENCH_ROOT"
+export CLBENCH_ROOT
+set -a && source ~/causal-reflection-continual-learning-bench/.env && set +a
+clbench setup sales_prediction
+```
+
+The bench venv also needs the sales extra if it is not already installed: `pandas`, `numpy`, `scikit-learn`, and `pyyaml`. `mini-swe-agent` is already there from Codebase Adaptation.
+
+Smoke is the first two frozen lifecycle years. The second year is the one that sends the first year's score back to the model. One full pass is 12 years. Five repeats use a new tag. Deploy the API build that contains the forecast pack before the first call.
+
+```bash
+screen -S clbench
+export CLBENCH_RUN_TAG=sales-smoke
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/sales_glm_smoke.json
+```
+
+```bash
+export CLBENCH_RUN_TAG=sales-full1
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/sales_glm.json --runs 1
+
+export CLBENCH_RUN_TAG=sales-runs5
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/sales_glm.json --runs 5
+```
+
+`max_workers` stays 1. The stateful session is `clbench-sales-glm-stateful-r1-<tag>-sales_prediction`. Reusing a tag resumes that graph.
+
+## Cohort Studies
+
+Local SQLite. The frozen studies are already in the bench checkout at `data/cohort_studies/default/`. The bench venv needs `lifelines` and `pandas`. No Docker image. Deploy the API build that contains the cohort pack before the first call.
+
+Smoke is the first HERALD study. One full pass is 20 studies. Five repeats use a new tag.
+
+```bash
+screen -S clbench
+export CLBENCH_RUN_TAG=cohort-smoke
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/cohort_glm_smoke.json
+```
+
+```bash
+export CLBENCH_RUN_TAG=cohort-full1
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/cohort_glm.json --runs 1
+
+export CLBENCH_RUN_TAG=cohort-runs5
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/cohort_glm.json --runs 5
+```
+
+`max_workers` stays 1. The stateful session is `clbench-cohort-glm-stateful-r1-<tag>-cohort_studies`. Reusing a tag resumes that graph.
 
 ## Layout
 

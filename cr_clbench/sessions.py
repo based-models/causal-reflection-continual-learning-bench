@@ -6,8 +6,8 @@ The difference between the two phases is whether that graph is kept:
 - stateful: one session for every instance of a rollout
 - stateless: one session per instance, cleared when the harness resets
 
-Codebase Adaptation and Database Exploration do not share ids. Each domain
-has its own slug and workload.
+Each domain has its own slug and workload, so a session never resumes
+another domain's graph.
 """
 
 from __future__ import annotations
@@ -16,7 +16,16 @@ import os
 import re
 from dataclasses import dataclass
 
-from .constants import DATABASE_TASK, QUERY_WORKLOAD, TASK_NAME, WORKLOAD
+from .constants import (
+    COHORT_TASK,
+    COHORT_WORKLOAD,
+    DATABASE_TASK,
+    FORECAST_WORKLOAD,
+    QUERY_WORKLOAD,
+    SALES_TASK,
+    TASK_NAME,
+    WORKLOAD,
+)
 
 _UNSAFE = re.compile(r"[\s,]+")
 
@@ -75,16 +84,24 @@ def run_tag() -> str:
 
 
 def workload_for(task_id: str) -> str:
-    """Coding pack for shell tasks. Query pack for Database Exploration."""
+    """The pack header for this task. Unknown tasks stay on the coding pack."""
     if task_id == DATABASE_TASK:
         return QUERY_WORKLOAD
+    if task_id == SALES_TASK:
+        return FORECAST_WORKLOAD
+    if task_id == COHORT_TASK:
+        return COHORT_WORKLOAD
     return WORKLOAD
 
 
 def id_slug(task_id: str) -> str:
-    """Short id piece. The two domains must not resume each other's graphs."""
+    """Short id piece. Domains must not resume each other's graphs."""
     if task_id == DATABASE_TASK:
         return "database"
+    if task_id == SALES_TASK:
+        return "sales"
+    if task_id == COHORT_TASK:
+        return "cohort"
     return "codebase"
 
 

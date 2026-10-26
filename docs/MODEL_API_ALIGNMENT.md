@@ -60,6 +60,32 @@ Sessions use the `database` slug: `clbench-database-glm-stateful-r{run}-database
 
 `quick_test` is one question, `questions.json` id `1`, with schema drift turned off before load. The variant's own defaults would otherwise run 20 + 20. `default` is the stock schema-drift schedule. `clbench setup database_exploration` downloads `products.db` and `products_drifted.db`.
 
+## Sales Prediction
+
+| Item | This run | Model API |
+|---|---|---|
+| Workload | `X-Workload: forecast` | `signal_set_for("forecast")` |
+| Analysis action | `{"thought","command"}` | A `.py` / `.R` script, or `--model <name>`, is stored as `forecast_procedure`. `ls`, `cat`, `nl`, and `head` are not |
+| Submit | `echo COMPLETE_TASK_AND_SUBMIT_FINAL_OUTPUT`, then `{"predictions":[...]}` | Neither replaces the remembered procedure. The predictions list stores nothing |
+| Feedback | `Predictions recorded for year Y. Composite score: N.` and, inside the next brief, JSON with `feedback_year` and `entries[].error` | `parse_forecast_feedback` sums `error` when those rows are present. Lower is better. The head line alone is enough on the last year |
+| Edge | Attached to the remembered script | First feedback is `forecast_error`. A later lower error sum is `forecast_improved`. A higher sum is `forecast_worsened` |
+
+Sessions use the `sales` slug. `quick_test` loads the frozen `sales_lifecycle` corpus and keeps the first two years, so the second year's prompt contains the first year's feedback. `default` is the 12-year corpus. The shell output is not scanned for a pytest footer. `clbench setup sales_prediction` pulls `pgasawa2/continual-learning-bench:sales-prediction`.
+
+## Cohort Studies
+
+| Item | This run | Model API |
+|---|---|---|
+| Workload | `X-Workload: cohort` | `signal_set_for("cohort")` |
+| Tool action | `{"thought","tool_call":{"tool",...}}` | The graph is built from the user message, not from the tool name |
+| Column listing | `=== Columns ===` plus `name: ... (levels)` | `schema_fact` → `defines`. Family `herald hhbp_category=undetectable/low/...` |
+| Survival table | lines with `S(12m)=` `S(24m)=` `S(36m)=` | `survival_table` → `defines`. Text from `=== Observable Cohort Fit`, `Mean KL`, and `KL=` is ignored |
+| Failure | a result starting `SQL ERROR:` or `ERROR:` | `probe_failed` → `causes_failure` |
+| Submission | the flat `{cohort_id}__s12` object | Stores nothing |
+| Next study | `Report submitted for HERALD.` and `## Study N/M: MERIDIAN Registry` | Drops schema facts for the submitted study. Keeps survival edges |
+
+Sessions use the `cohort` slug. `quick_test` runs one instance of the frozen `default` dataset. `default` is 20 studies. A `NOTICE:` line also drops the current study's schema facts.
+
 ## Dashboard check
 
 After smoke, the coding workload is on the session, `cost_usd` is set in the trace, the stateful rollout is one session, each stateless instance is its own session, and at least one edge follows a user message that contains a pytest, vitest, or Go footer.

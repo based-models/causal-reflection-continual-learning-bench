@@ -27,7 +27,7 @@ def test_other_systems_are_rejected():
 
 def test_other_domains_are_rejected():
     with pytest.raises(SystemExit, match="codebase_adaptation"):
-        _reject_other_domains(["run", "cohort_studies", "--system", "icl"])
+        _reject_other_domains(["run", "blind_spectrum_monitoring", "--system", "icl"])
 
 
 def test_database_exploration_config_is_accepted(tmp_path: Path):
@@ -36,6 +36,13 @@ def test_database_exploration_config_is_accepted(tmp_path: Path):
         json.dumps({"task": {"name": "database_exploration", "params": {"schedule": "default"}}})
     )
     _reject_other_domains(["run", "--config", str(path)])
+
+
+def test_sales_and_cohort_configs_are_accepted(tmp_path: Path):
+    for name in ("sales_prediction", "cohort_studies"):
+        path = tmp_path / f"{name}.json"
+        path.write_text(json.dumps({"task": {"name": name, "params": {"schedule": "default"}}}))
+        _reject_other_domains(["run", "--config", str(path)])
 
 
 def test_config_for_another_task_is_rejected(tmp_path: Path):

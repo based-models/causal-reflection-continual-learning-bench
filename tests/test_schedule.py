@@ -13,6 +13,8 @@ from cr_clbench.schedule import (
     DATABASE_SMOKE_QUESTION_ID,
     SMOKE_INSTANCE_ID,
     apply_database_smoke,
+    apply_sales_smoke,
+    cohort_smoke_arguments,
 )
 
 
@@ -114,6 +116,36 @@ def test_scope_task_name_prefers_the_task_object_over_a_missing_log():
             registry.TASKS_REGISTRY.pop("database_exploration", None)
         else:
             registry.TASKS_REGISTRY["database_exploration"] = previous
+
+
+def test_sales_quick_test_is_one_instance_of_the_lifecycle_corpus():
+    install_runtime()
+    import src.tasks.schedules as schedules_mod
+
+    spec = schedules_mod.get_task_schedule("sales_prediction", "quick_test")
+    assert spec.stages[0].schedule["num_instances"] == 2
+    assert spec.run_defaults is not None
+    assert spec.run_defaults.max_workers == 1
+
+    class _Task:
+        def __init__(self) -> None:
+            self.schedule = "quick_test"
+            self.num_instances = 12
+            self.instances = ["2027", "2028", "2029"]
+
+    task = _Task()
+    apply_sales_smoke(task)
+    assert task.num_instances == 2
+    assert task.instances == ["2027", "2028"]
+
+
+def test_cohort_smoke_asks_the_default_loader_for_one_instance():
+    updated, smoke = cohort_smoke_arguments({"schedule": "quick_test", "seed": 42})
+    assert smoke is True
+    assert updated == {"schedule": "default", "seed": 42, "num_instances": 1}
+    unchanged, full = cohort_smoke_arguments({"schedule": "default"})
+    assert full is False
+    assert unchanged == {"schedule": "default"}
 
 
 def test_quick_test_resolves_from_the_schedule_module():

@@ -8,7 +8,12 @@ from pathlib import Path
 
 import pytest
 
-from cr_clbench.integrate import install_runtime, scope_task_name, task_data_dir
+from cr_clbench.integrate import (
+    _prefer_checkout_templates,
+    install_runtime,
+    scope_task_name,
+    task_data_dir,
+)
 from cr_clbench.schedule import (
     DATABASE_SMOKE_QUESTION_ID,
     SMOKE_INSTANCE_ID,
@@ -173,6 +178,24 @@ def test_quick_test_rebinds_a_task_module_imported_earlier():
             sys.modules.pop("src.tasks.codebase_adaptation.task", None)
         else:
             sys.modules["src.tasks.codebase_adaptation.task"] = previous
+
+
+def test_missing_task_templates_are_loaded_from_the_checkout(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+):
+    from jinja2 import Environment, FileSystemLoader
+
+    packaged = tmp_path / "installed" / "templates"
+    packaged.mkdir(parents=True)
+    checkout = tmp_path / "checkout" / "src" / "tasks" / "sales_prediction" / "templates"
+    checkout.mkdir(parents=True)
+    (checkout / "instance.j2").write_text("year {{ target_year }}")
+    monkeypatch.setenv("CLBENCH_ROOT", str(tmp_path / "checkout"))
+    module = types.SimpleNamespace(
+        _jinja_env=Environment(loader=FileSystemLoader(str(packaged)))
+    )
+    _prefer_checkout_templates(module, "sales_prediction", "instance.j2")
+    assert module._jinja_env.get_template("instance.j2").render(target_year=2027) == "year 2027"
 
 
 def test_packaged_json_wins_over_the_checkout(tmp_path: Path, monkeypatch: pytest.MonkeyPatch):

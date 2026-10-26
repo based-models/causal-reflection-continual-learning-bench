@@ -192,13 +192,45 @@ def _checkout_file(family: str, name: str) -> Path | None:
     return None
 
 
+def _prefer_checkout_templates(module: Any, family: str, marker: str) -> None:
+    """Load Jinja templates from the checkout when the installed package omitted them."""
+    env = getattr(module, "_jinja_env", None)
+    if env is None or getattr(env, "_cr_templates", False):
+        return
+    loader = getattr(env, "loader", None)
+    search = list(getattr(loader, "searchpath", []) or [])
+    packaged = Path(search[0]) if search else None
+    if packaged is not None and (packaged / marker).is_file():
+        env._cr_templates = True
+        return
+    roots: list[Path] = []
+    env_root = (os.environ.get("CLBENCH_ROOT") or "").strip()
+    if env_root:
+        roots.append(Path(env_root))
+    cwd = Path.cwd()
+    if cwd not in roots:
+        roots.append(cwd)
+    for root in roots:
+        candidate = root / "src" / "tasks" / family / "templates" / marker
+        if not candidate.is_file():
+            continue
+        from jinja2 import FileSystemLoader
+
+        env.loader = FileSystemLoader(str(candidate.parent))
+        break
+    env._cr_templates = True
+
+
 def _install_sales_runtime() -> None:
-    """Point the frozen corpus at the checkout, and keep smoke to one year."""
+    """Point the frozen corpus and templates at the checkout, and keep smoke to two years."""
     try:
         import src.tasks.sales_prediction.corpus as corpus
+        import src.tasks.sales_prediction.prompts as sales_prompts
         import src.tasks.sales_prediction.task as sales_task
     except Exception:
         return
+
+    _prefer_checkout_templates(sales_prompts, "sales_prediction", "instance.j2")
 
     packaged = corpus.DATA_DIR / "sales_lifecycle_panel.jsonl"
     checkout = _checkout_file("sales_prediction", "sales_lifecycle_panel.jsonl")
@@ -248,6 +280,7 @@ def _install_cohort_runtime() -> None:
 
     _redirect_cohort_schedule_open(cohort_task)
     _redirect_cohort_dataset(cohort_task)
+    _prefer_checkout_templates(cohort_task, "cohort_studies", "instance_brief.j2")
 
     original_init = cohort_task.CohortStudiesTask.__init__
     if getattr(original_init, "_cr_cohort_init", False):

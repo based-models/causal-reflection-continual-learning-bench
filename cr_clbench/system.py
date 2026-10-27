@@ -203,6 +203,19 @@ class CausalReflectionICL(ICLSystem):
                 "The parsed action is not a cohort tool call or a survival submission. "
                 "Stopping. Leave the causal prefix on."
             )
+        if workload == "strategy":
+            name = getattr(action, "action", None)
+            if isinstance(name, str) and name.strip().upper() in {
+                "FOLD",
+                "CALL",
+                "CHECK",
+                "RAISE",
+            }:
+                return
+            raise CommandParseStop(
+                "The parsed action is not FOLD, CALL, CHECK, or RAISE. "
+                "Stopping. Leave the causal prefix on."
+            )
         command = getattr(action, "command", None)
         if not isinstance(command, str) or not command.strip():
             raise CommandParseStop(

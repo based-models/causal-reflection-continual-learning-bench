@@ -38,8 +38,8 @@ def test_database_exploration_config_is_accepted(tmp_path: Path):
     _reject_other_domains(["run", "--config", str(path)])
 
 
-def test_sales_and_cohort_configs_are_accepted(tmp_path: Path):
-    for name in ("sales_prediction", "cohort_studies"):
+def test_sales_cohort_and_poker_configs_are_accepted(tmp_path: Path):
+    for name in ("sales_prediction", "cohort_studies", "exploitable_poker"):
         path = tmp_path / f"{name}.json"
         path.write_text(json.dumps({"task": {"name": name, "params": {"schedule": "default"}}}))
         _reject_other_domains(["run", "--config", str(path)])
@@ -47,7 +47,7 @@ def test_sales_and_cohort_configs_are_accepted(tmp_path: Path):
 
 def test_config_for_another_task_is_rejected(tmp_path: Path):
     path = tmp_path / "other.json"
-    path.write_text(json.dumps({"task": {"name": "exploitable_poker"}}))
+    path.write_text(json.dumps({"task": {"name": "blind_spectrum_monitoring"}}))
     with pytest.raises(SystemExit, match="Supported tasks"):
         _reject_other_domains(["run", "--config", str(path)])
 

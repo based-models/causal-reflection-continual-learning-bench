@@ -131,6 +131,26 @@ def test_cohort_sessions_use_the_cohort_workload():
     assert workload_for("cohort_studies") == "cohort"
 
 
+def test_poker_sessions_use_the_strategy_workload():
+    run_id, session_id = build_ids(
+        kind="stateful",
+        run_index=0,
+        task_id="exploitable_poker",
+        instance_id=None,
+    )
+    _, stateless = build_ids(
+        kind="stateless",
+        run_index=None,
+        task_id="exploitable_poker",
+        instance_id="poker:calling_station:hand:stage0_seed42_hand1",
+    )
+    assert run_id == "clbench-poker-glm-r1"
+    assert session_id == "clbench-poker-glm-stateful-r1-exploitable_poker"
+    assert stateless.endswith("poker:calling_station:hand:stage0_seed42_hand1")
+    assert workload_for("exploitable_poker") == "strategy"
+    assert "codebase" not in session_id
+
+
 def test_headers_always_carry_session_run_and_workload():
     headers = causal_headers(
         kind="stateful",

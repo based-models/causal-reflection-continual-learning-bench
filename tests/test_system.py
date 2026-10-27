@@ -422,6 +422,91 @@ def test_cohort_tool_call_uses_the_cohort_header(monkeypatch):
     assert message.endswith("all 36 cohorts.")
 
 
+class _PokerAction(BaseModel):
+    thinking: str = ""
+    action: str
+    amount: int | None = None
+
+
+def test_poker_call_uses_the_strategy_header(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    calls: list[dict] = []
+
+    def fake_completion(**kwargs):
+        calls.append(kwargs)
+        return _json_completion('{"thinking": "call the blind", "action": "CALL"}')
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="exploitable_poker",
+    )
+    with override_scope(scope):
+        system.respond(
+            Query(
+                prompt="Hand #1 - PREFLOP\nOpponent: Tom",
+                response_schema=_PokerAction,
+                instance_id="poker:calling_station:hand:stage0_seed42_hand1",
+                instance_index=0,
+            )
+        )
+        system.observe(Observation(content="Action taken", instance_complete=False))
+        system.respond(
+            Query(
+                prompt="Hand #1 - FLOP\nOpponent: Tom",
+                response_schema=_PokerAction,
+                instance_id="poker:calling_station:hand:stage0_seed42_hand1",
+                instance_index=0,
+            )
+        )
+    assert calls[0]["extra_headers"]["X-Workload"] == "strategy"
+    assert calls[0]["extra_headers"]["X-Session-Id"] == (
+        "clbench-poker-glm-stateful-r1-exploitable_poker"
+    )
+    assert calls[1]["extra_headers"]["X-Session-Id"] == calls[0]["extra_headers"]["X-Session-Id"]
+    message = calls[1]["messages"][-1]["content"]
+    assert message.startswith("Action taken")
+    assert message.endswith("Opponent: Tom")
+
+
+def test_poker_without_a_legal_action_stops(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _json_completion('{"thinking": "all in", "action": "BET"}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="exploitable_poker",
+    )
+    with override_scope(scope):
+        with pytest.raises(CommandParseStop, match="RAISE"):
+            system.respond(
+                Query(
+                    prompt="Hand #1 - PREFLOP\nOpponent: Tom",
+                    response_schema=_PokerAction,
+                    instance_id="poker:calling_station:hand:stage0_seed42_hand1",
+                    instance_index=0,
+                )
+            )
+
+
 def test_auto_provider_mode_is_rejected():
     with pytest.raises(ValueError, match="litellm_chat"):
         CausalReflectionICL(provider_mode="auto")

@@ -14,6 +14,7 @@ from .constants import (
     DATABASE_TASK,
     LEADERBOARD_NAME,
     LITELLM_MODEL,
+    POKER_TASK,
     PUBLIC_MODEL_ID,
     SALES_TASK,
     SUPPORTED_TASKS,
@@ -23,8 +24,6 @@ from .schedule import DATABASE_SMOKE_QUESTION_ID, SMOKE_INSTANCE_ID
 from .sessions import build_ids, workload_for
 
 _OTHER_TASKS = {
-    "exploitable_poker",
-    "poker",
     "blind_spectrum_monitoring",
 }
 _CODEBASE_DATASET = Path("data/codebase_adaptation/final-dataset.jsonl")
@@ -48,6 +47,13 @@ _COHORT_READY = (
     Path("data/cohort_studies/default/metadata.json"),
     Path("data/cohort_studies/default/ground_truth.json"),
     Path("data/cohort_studies/default/dbs/herald_suburban.db"),
+)
+_POKER_READY = (
+    Path("src/tasks/exploitable_poker/schedules/quick_test.json"),
+    Path("src/tasks/exploitable_poker/schedules/default.json"),
+    Path("src/tasks/exploitable_poker/variants/calling_station.json"),
+    Path("src/tasks/exploitable_poker/variants/fit_or_fold.json"),
+    Path("src/tasks/exploitable_poker/variants/loose_aggressive.json"),
 )
 _NEEDS_DATASET = {"run", "smoke"}
 
@@ -114,15 +120,19 @@ Commands:
   cr-clbench run --config configs/cohort_glm_smoke.json
   cr-clbench run --config configs/cohort_glm.json --runs 1
   cr-clbench run --config configs/cohort_glm.json --runs 5
+  cr-clbench run --config configs/poker_glm_smoke.json
+  cr-clbench run --config configs/poker_glm.json --runs 1
+  cr-clbench run --config configs/poker_glm.json --runs 5
   cr-clbench ids
 
 Set CRA_API_KEY. Set CLBENCH_ROOT to a checkout of continual-learning-bench.
 Codebase smoke is quick_test on {SMOKE_INSTANCE_ID}. Database smoke is
 quick_test on question {DATABASE_SMOKE_QUESTION_ID}. Sales smoke is the first
 two frozen lifecycle years. Cohort smoke is the first study of the default dataset.
-All of them use one worker.
+Poker smoke is five hands against Tom. All of them use one worker.
 Database Exploration needs `clbench setup database_exploration`.
 Sales Prediction needs `clbench setup sales_prediction` to pull its Docker image.
+Exploitable Poker needs `texasholdem==0.11.0` in the bench venv. No Docker image.
 """
     )
 
@@ -133,6 +143,7 @@ def _print_ids() -> None:
         (DATABASE_TASK, DATABASE_SMOKE_QUESTION_ID),
         (SALES_TASK, "sales_prediction:default:years:2027-2031"),
         (COHORT_TASK, "cohort_studies:herald_suburban"),
+        (POKER_TASK, "poker:calling_station:hand:stage0_seed42_hand1"),
     ):
         stateful_run, stateful_session = build_ids(
             kind="stateful",
@@ -238,6 +249,21 @@ def _require_task_data(args: list[str]) -> None:
             "The frozen default dataset lives in the continual-learning-bench "
             "checkout at data/cohort_studies/default/.",
         )
+        return
+    if task == POKER_TASK:
+        _require_files(
+            _POKER_READY,
+            "Exploitable Poker is missing {names}. "
+            "The schedules and variants live in the continual-learning-bench "
+            "checkout at src/tasks/exploitable_poker/.",
+        )
+        try:
+            import texasholdem  # noqa: F401
+        except ModuleNotFoundError as exc:
+            raise SystemExit(
+                "Exploitable Poker needs texasholdem==0.11.0 in the bench venv. "
+                "From that venv run `uv pip install 'texasholdem==0.11.0'`."
+            ) from exc
         return
     if not _CODEBASE_DATASET.is_file():
         raise SystemExit(

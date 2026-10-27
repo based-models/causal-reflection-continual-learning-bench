@@ -8,11 +8,13 @@ TASK_NAME = "codebase_adaptation"
 DATABASE_TASK = "database_exploration"
 SALES_TASK = "sales_prediction"
 COHORT_TASK = "cohort_studies"
-SUPPORTED_TASKS = (TASK_NAME, DATABASE_TASK, SALES_TASK, COHORT_TASK)
+POKER_TASK = "exploitable_poker"
+SUPPORTED_TASKS = (TASK_NAME, DATABASE_TASK, SALES_TASK, COHORT_TASK, POKER_TASK)
 WORKLOAD = "coding"
 QUERY_WORKLOAD = "query"
 FORECAST_WORKLOAD = "forecast"
 COHORT_WORKLOAD = "cohort"
+STRATEGY_WORKLOAD = "strategy"
 
 # Fireworks lists GLM 5.3 Flash at 1,048,576 context tokens and 131,072 output tokens.
 # https://fireworks.ai/models/fireworks/glm-5p3-flash

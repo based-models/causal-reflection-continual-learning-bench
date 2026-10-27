@@ -86,6 +86,20 @@ Sessions use the `sales` slug. `quick_test` loads the frozen `sales_lifecycle` c
 
 Sessions use the `cohort` slug. `quick_test` runs one instance of the frozen `default` dataset. `default` is 20 studies. A `NOTICE:` line also drops the current study's schema facts.
 
+## Exploitable Poker
+
+| Item | This run | Model API |
+|---|---|---|
+| Workload | `X-Workload: strategy` | `signal_set_for("strategy")` |
+| Decision | `{"thinking","action":"FOLD"\|"CALL"\|"CHECK"\|"RAISE","amount"}` | Stores the `Opponent:` name. Writes no edge |
+| Street | user message `Action taken` plus the next decision prompt | Writes nothing |
+| Payoff | `Net chip change this hand: +40 chips` | Booked to the opponent stored before this message. `Total profit` is ignored |
+| Switch | `NOTICE: You are now playing against Alex.` then `Opponent: Alex` | The finished hand stays on the stored name. The notice name becomes the seat afterward |
+| Auto-resolved hand | `Additional auto-resolved hand while advancing to the next prompt:` | Chip changes after that separator go to the notice name |
+| Edge | one per opponent | Source `action:tom +40`, outcome `strategy_chip`. The family key is `tom`, so the next hand replaces that edge |
+
+Sessions use the `poker` slug. `quick_test` is five calling-station hands, forced to one run. `default` is 120 hands, permuted inside each stage. No reflect call.
+
 ## Dashboard check
 
 After smoke, the coding workload is on the session, `cost_usd` is set in the trace, the stateful rollout is one session, each stateless instance is its own session, and at least one edge follows a user message that contains a pytest, vitest, or Go footer.

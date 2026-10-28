@@ -477,7 +477,7 @@ def test_poker_call_uses_the_strategy_header(monkeypatch):
     assert message.endswith("Opponent: Tom")
 
 
-def test_poker_without_a_legal_action_stops(monkeypatch):
+def test_poker_bet_is_left_for_the_task(monkeypatch):
     monkeypatch.setenv("CRA_API_KEY", "test-key")
     monkeypatch.setattr(
         "src.systems.utils.structured_output._model_supports_response_format",
@@ -496,7 +496,37 @@ def test_poker_without_a_legal_action_stops(monkeypatch):
         task_name="exploitable_poker",
     )
     with override_scope(scope):
-        with pytest.raises(CommandParseStop, match="RAISE"):
+        response = system.respond(
+            Query(
+                prompt="Hand #1 - PREFLOP\nOpponent: Tom",
+                response_schema=_PokerAction,
+                instance_id="poker:calling_station:hand:stage0_seed42_hand1",
+                instance_index=0,
+            )
+        )
+    assert response.action.action == "BET"
+
+
+def test_poker_without_an_action_string_stops(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _json_completion('{"thinking": "all in", "action": ""}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="exploitable_poker",
+    )
+    with override_scope(scope):
+        with pytest.raises(CommandParseStop, match="action string"):
             system.respond(
                 Query(
                     prompt="Hand #1 - PREFLOP\nOpponent: Tom",

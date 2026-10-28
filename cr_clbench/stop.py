@@ -21,8 +21,9 @@ class CommandParseStop(CausalReflectionStop):
     Codebase Adaptation requires ``command``. Database Exploration requires
     ``action`` of ``QUERY`` or ``ANSWER``. Sales Prediction requires ``command``
     or a ``predictions`` list. Cohort Studies requires ``tool_call`` or the
-    flat survival submission. Exploitable Poker requires ``action`` of
-    ``FOLD``, ``CALL``, ``CHECK``, or ``RAISE``.
+    flat survival submission. Exploitable Poker requires an action string.
+    The task accepts ``FOLD``, ``CALL``, ``CHECK``, or ``RAISE`` and rejects
+    any other string itself.
     """
 
 
@@ -79,7 +80,7 @@ def classify_stop(exc: BaseException) -> CausalReflectionStop | None:
             "Database Exploration expects action QUERY or ANSWER. "
             "Sales Prediction expects a command or a predictions list. "
             "Cohort Studies expects a tool call or the survival submission. "
-            "Exploitable Poker expects action FOLD, CALL, CHECK, or RAISE. "
+            "Exploitable Poker expects an action string. "
             "Stopping. Leave the causal prefix on.\n"
             f"{exc}"
         )

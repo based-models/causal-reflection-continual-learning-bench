@@ -232,7 +232,7 @@ export CLBENCH_RUN_TAG=poker-runs5
 cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/poker_glm.json --runs 5
 ```
 
-`max_workers` stays 1. The stateful session is `clbench-poker-glm-stateful-r1-<tag>-exploitable_poker`. Reusing a tag resumes that graph.
+`max_workers` stays 1. The stateful session is `clbench-poker-glm-stateful-r1-<tag>-exploitable_poker`. Reusing a tag resumes that graph. An action string other than `FOLD`, `CALL`, `CHECK`, or `RAISE` is returned to the task, which rejects it and repeats the decision. A reply with no action string stops the run.
 
 ## Layout
 

@@ -205,15 +205,10 @@ class CausalReflectionICL(ICLSystem):
             )
         if workload == "strategy":
             name = getattr(action, "action", None)
-            if isinstance(name, str) and name.strip().upper() in {
-                "FOLD",
-                "CALL",
-                "CHECK",
-                "RAISE",
-            }:
+            if isinstance(name, str) and name.strip():
                 return
             raise CommandParseStop(
-                "The parsed action is not FOLD, CALL, CHECK, or RAISE. "
+                "The parsed action has no poker action string. "
                 "Stopping. Leave the causal prefix on."
             )
         command = getattr(action, "command", None)

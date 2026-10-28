@@ -22,11 +22,13 @@ from .pricing import register_prices
 from .schedule import (
     apply_database_smoke,
     apply_sales_smoke,
+    apply_spectrum_smoke,
     cohort_quick_test_schedule,
     cohort_smoke_arguments,
     database_quick_test_schedule,
     quick_test_schedule,
     sales_quick_test_schedule,
+    spectrum_smoke_arguments,
 )
 from .sessions import RunScope
 
@@ -54,6 +56,7 @@ def install_runtime() -> None:
     _install_database_smoke()
     _install_sales_runtime()
     _install_cohort_runtime()
+    _install_spectrum_runtime()
     _install_run_scope_hook()
 
 
@@ -219,6 +222,47 @@ def _prefer_checkout_templates(module: Any, family: str, marker: str) -> None:
         env.loader = FileSystemLoader(str(candidate.parent))
         break
     env._cr_templates = True
+
+
+def _install_spectrum_runtime() -> None:
+    """Point the frozen corpus and templates at the checkout, and keep smoke to two scans."""
+    try:
+        import src.tasks.blind_spectrum_monitoring.corpus as corpus
+        import src.tasks.blind_spectrum_monitoring.task as spectrum_task
+    except Exception:
+        return
+
+    _prefer_checkout_templates(spectrum_task, "blind_spectrum_monitoring", "instance.j2")
+
+    packaged = corpus.DATA_DIR / "mixed_grid_lifecycle.jsonl"
+    checkout = _checkout_file("blind_spectrum_monitoring", "mixed_grid_lifecycle.jsonl")
+    if not packaged.is_file() and checkout is not None:
+        corpus.DATA_DIR = checkout.parent
+
+    original_init = spectrum_task.BlindSpectrumMonitoringTask.__init__
+    if not getattr(original_init, "_cr_spectrum_init", False):
+
+        @wraps(original_init)
+        def wrapped_init(self: Any, *args: Any, **kwargs: Any) -> None:
+            kwargs, smoke = spectrum_smoke_arguments(kwargs)
+            original_init(self, *args, **kwargs)
+            if smoke:
+                self._cr_spectrum_smoke = True
+                apply_spectrum_smoke(self)
+
+        wrapped_init._cr_spectrum_init = True  # type: ignore[attr-defined]
+        spectrum_task.BlindSpectrumMonitoringTask.__init__ = wrapped_init  # type: ignore[method-assign]
+
+    current = spectrum_task.BlindSpectrumMonitoringTask.build_canonical_run_state
+    if getattr(current, "_cr_spectrum_build", False):
+        return
+
+    def wrapped_build(self: Any) -> None:
+        current(self)
+        apply_spectrum_smoke(self)
+
+    wrapped_build._cr_spectrum_build = True  # type: ignore[attr-defined]
+    spectrum_task.BlindSpectrumMonitoringTask.build_canonical_run_state = wrapped_build  # type: ignore[method-assign]
 
 
 def _install_sales_runtime() -> None:

@@ -17,15 +17,14 @@ from .constants import (
     POKER_TASK,
     PUBLIC_MODEL_ID,
     SALES_TASK,
+    SPECTRUM_TASK,
     SUPPORTED_TASKS,
     TASK_NAME,
 )
 from .schedule import DATABASE_SMOKE_QUESTION_ID, SMOKE_INSTANCE_ID
 from .sessions import build_ids, workload_for
 
-_OTHER_TASKS = {
-    "blind_spectrum_monitoring",
-}
+_OTHER_TASKS: set[str] = set()
 _CODEBASE_DATASET = Path("data/codebase_adaptation/final-dataset.jsonl")
 _DATABASE_READY = (
     Path("data/database_exploration/products.db"),
@@ -47,6 +46,17 @@ _COHORT_READY = (
     Path("data/cohort_studies/default/metadata.json"),
     Path("data/cohort_studies/default/ground_truth.json"),
     Path("data/cohort_studies/default/dbs/herald_suburban.db"),
+)
+_SPECTRUM_READY = (
+    Path("src/tasks/blind_spectrum_monitoring/schedules/default.json"),
+    Path("src/tasks/blind_spectrum_monitoring/variants/five_ch_wide.json"),
+    Path("src/tasks/blind_spectrum_monitoring/variants/five_plus_four_mixed.json"),
+    Path("src/tasks/blind_spectrum_monitoring/variants/full_grid_active.json"),
+    Path("src/tasks/blind_spectrum_monitoring/templates/instance.j2"),
+    Path("src/tasks/blind_spectrum_monitoring/templates/task.j2"),
+    Path("src/tasks/blind_spectrum_monitoring/templates/feedback.j2"),
+    Path("data/blind_spectrum_monitoring/mixed_grid_lifecycle.jsonl"),
+    Path("data/blind_spectrum_monitoring/mixed_grid_lifecycle_metadata.json"),
 )
 _POKER_READY = (
     Path("src/tasks/exploitable_poker/schedules/quick_test.json"),
@@ -123,16 +133,22 @@ Commands:
   cr-clbench run --config configs/poker_glm_smoke.json
   cr-clbench run --config configs/poker_glm.json --runs 1
   cr-clbench run --config configs/poker_glm.json --runs 5
+  cr-clbench run --config configs/spectrum_glm_smoke.json
+  cr-clbench run --config configs/spectrum_glm.json --runs 1
+  cr-clbench run --config configs/spectrum_glm.json --runs 5
   cr-clbench ids
 
 Set CRA_API_KEY. Set CLBENCH_ROOT to a checkout of continual-learning-bench.
 Codebase smoke is quick_test on {SMOKE_INSTANCE_ID}. Database smoke is
 quick_test on question {DATABASE_SMOKE_QUESTION_ID}. Sales smoke is the first
 two frozen lifecycle years. Cohort smoke is the first study of the default dataset.
-Poker smoke is five hands against Tom. All of them use one worker.
+Poker smoke is five hands against Tom. Spectrum smoke is the first two
+scans of the frozen mixed-grid corpus. All of them use one worker.
 Database Exploration needs `clbench setup database_exploration`.
 Sales Prediction needs `clbench setup sales_prediction` to pull its Docker image.
 Exploitable Poker needs `texasholdem==0.11.0` in the bench venv. No Docker image.
+Blind Spectrum Monitoring needs the frozen mixed_grid_lifecycle corpus in the
+bench checkout. No Docker image.
 """
     )
 
@@ -144,6 +160,10 @@ def _print_ids() -> None:
         (SALES_TASK, "sales_prediction:default:years:2027-2031"),
         (COHORT_TASK, "cohort_studies:herald_suburban"),
         (POKER_TASK, "poker:calling_station:hand:stage0_seed42_hand1"),
+        (
+            SPECTRUM_TASK,
+            "blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1",
+        ),
     ):
         stateful_run, stateful_session = build_ids(
             kind="stateful",
@@ -264,6 +284,14 @@ def _require_task_data(args: list[str]) -> None:
                 "Exploitable Poker needs texasholdem==0.11.0 in the bench venv. "
                 "From that venv run `uv pip install 'texasholdem==0.11.0'`."
             ) from exc
+        return
+    if task == SPECTRUM_TASK:
+        _require_files(
+            _SPECTRUM_READY,
+            "Blind Spectrum Monitoring is missing {names}. "
+            "The schedule, variants, templates, and frozen mixed_grid_lifecycle "
+            "corpus live in the continual-learning-bench checkout.",
+        )
         return
     if not _CODEBASE_DATASET.is_file():
         raise SystemExit(

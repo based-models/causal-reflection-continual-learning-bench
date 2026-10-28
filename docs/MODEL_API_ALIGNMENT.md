@@ -100,6 +100,20 @@ Sessions use the `cohort` slug. `quick_test` runs one instance of the frozen `de
 
 Sessions use the `poker` slug. `quick_test` is five calling-station hands, forced to one run. `default` is 120 hands, permuted inside each stage. No reflect call.
 
+## Blind Spectrum Monitoring
+
+| Item | This run | Model API |
+|---|---|---|
+| Workload | `X-Workload: registry` | `signal_set_for("registry")`. `spectrum` and `blind_spectrum_monitoring` are generic |
+| Report | `{"transmitters":[{"center_freq","bandwidth","currently_active","estimated_power"}]}` | The model's report is not read. An empty list is still a report |
+| Peaks | `freq: 31.4 MHz` between `Detected peaks:` and `Band:` | A peak within 4 MHz of a stored center increments that center. Otherwise the center is quantized to 0.5 MHz |
+| Acknowledgement | `Scan N recorded.` | Writes nothing. A block with no peaks leaves every center in place |
+| First sight | one new center in the peak block | Stored in `registry_hits`. No edge yet |
+| Later sight | the same center again | Replaces that center's edge. Source `action:31.5`, outcome `seen_N`, label `defines`. The tail line is `defines seen_N 31.5` |
+| Band line | `Band: 0.0-168.0 MHz` | Not a transmitter. Parsing stops at `Band:` |
+
+Sessions use the `spectrum` slug. Smoke keeps the first two scans of `mixed_grid_lifecycle` after loading the default schedule, so scan 2 carries scan 1's acknowledgement and the next peak list. `default` is 90 scans, permuted inside each stage of 30. `repeat_instructions` is false. No reflect call. Bandwidth stays in the transcript. The edge identity is the center.
+
 ## Dashboard check
 
 After smoke, the coding workload is on the session, `cost_usd` is set in the trace, the stateful rollout is one session, each stateless instance is its own session, and at least one edge follows a user message that contains a pytest, vitest, or Go footer.

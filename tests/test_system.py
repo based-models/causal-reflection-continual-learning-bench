@@ -537,6 +537,127 @@ def test_poker_without_an_action_string_stops(monkeypatch):
             )
 
 
+class _ScanReport(BaseModel):
+    transmitters: list[dict]
+
+
+class _ThoughtOnly(BaseModel):
+    thinking: str = ""
+
+
+def test_spectrum_report_uses_the_registry_header(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    calls: list[dict] = []
+
+    def fake_completion(**kwargs):
+        calls.append(kwargs)
+        return _json_completion(
+            '{"transmitters": [{"center_freq": 31.5, "bandwidth": 15.0, '
+            '"currently_active": true, "estimated_power": -40.0}]}'
+        )
+
+    monkeypatch.setattr(litellm, "completion", fake_completion)
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="blind_spectrum_monitoring",
+    )
+    with override_scope(scope):
+        response = system.respond(
+            Query(
+                prompt="--- Scan 1/90 ---\nDetected peaks:\n",
+                response_schema=_ScanReport,
+                instance_id="blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1",
+                instance_index=0,
+            )
+        )
+        system.observe(Observation(content="Scan 1 recorded.", instance_complete=True))
+        system.respond(
+            Query(
+                prompt="--- Scan 2/90 ---\nDetected peaks:\n",
+                response_schema=_ScanReport,
+                instance_id="blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:2",
+                instance_index=1,
+            )
+        )
+    assert response.action.transmitters[0]["center_freq"] == 31.5
+    assert calls[0]["extra_headers"]["X-Workload"] == "registry"
+    assert calls[0]["extra_headers"]["X-Session-Id"] == (
+        "clbench-spectrum-glm-stateful-r1-blind_spectrum_monitoring"
+    )
+    assert calls[1]["extra_headers"]["X-Session-Id"] == calls[0]["extra_headers"]["X-Session-Id"]
+    message = calls[1]["messages"][-1]["content"]
+    assert message.startswith("Scan 1 recorded.")
+    assert message.endswith("Detected peaks:")
+
+
+def test_spectrum_empty_transmitter_list_is_a_report(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _json_completion('{"transmitters": []}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="blind_spectrum_monitoring",
+    )
+    with override_scope(scope):
+        response = system.respond(
+            Query(
+                prompt="--- Scan 1/90 ---\nDetected peaks:\n",
+                response_schema=_ScanReport,
+                instance_id="blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1",
+                instance_index=0,
+            )
+        )
+    assert response.action.transmitters == []
+
+
+def test_spectrum_without_transmitters_stops(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _json_completion('{"thinking": "no report"}'),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="blind_spectrum_monitoring",
+    )
+    with override_scope(scope):
+        with pytest.raises(CommandParseStop, match="transmitters"):
+            system.respond(
+                Query(
+                    prompt="--- Scan 1/90 ---\nDetected peaks:\n",
+                    response_schema=_ThoughtOnly,
+                    instance_id="blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1",
+                    instance_index=0,
+                )
+            )
+
+
 def test_auto_provider_mode_is_rejected():
     with pytest.raises(ValueError, match="litellm_chat"):
         CausalReflectionICL(provider_mode="auto")

@@ -203,6 +203,14 @@ class CausalReflectionICL(ICLSystem):
                 "The parsed action is not a cohort tool call or a survival submission. "
                 "Stopping. Leave the causal prefix on."
             )
+        if workload == "registry":
+            transmitters = getattr(action, "transmitters", None)
+            if isinstance(transmitters, list):
+                return
+            raise CommandParseStop(
+                "The parsed action has no transmitters list. "
+                "Stopping. Leave the causal prefix on."
+            )
         if workload == "strategy":
             name = getattr(action, "action", None)
             if isinstance(name, str) and name.strip():

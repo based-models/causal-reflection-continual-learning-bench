@@ -23,7 +23,8 @@ class CommandParseStop(CausalReflectionStop):
     or a ``predictions`` list. Cohort Studies requires ``tool_call`` or the
     flat survival submission. Exploitable Poker requires an action string.
     The task accepts ``FOLD``, ``CALL``, ``CHECK``, or ``RAISE`` and rejects
-    any other string itself.
+    any other string itself. Blind Spectrum Monitoring requires a
+    ``transmitters`` list.
     """
 
 
@@ -81,6 +82,7 @@ def classify_stop(exc: BaseException) -> CausalReflectionStop | None:
             "Sales Prediction expects a command or a predictions list. "
             "Cohort Studies expects a tool call or the survival submission. "
             "Exploitable Poker expects an action string. "
+            "Blind Spectrum Monitoring expects a transmitters list. "
             "Stopping. Leave the causal prefix on.\n"
             f"{exc}"
         )

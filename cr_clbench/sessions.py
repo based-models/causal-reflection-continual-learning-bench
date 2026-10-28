@@ -23,7 +23,9 @@ from .constants import (
     FORECAST_WORKLOAD,
     POKER_TASK,
     QUERY_WORKLOAD,
+    REGISTRY_WORKLOAD,
     SALES_TASK,
+    SPECTRUM_TASK,
     STRATEGY_WORKLOAD,
     TASK_NAME,
     WORKLOAD,
@@ -95,6 +97,8 @@ def workload_for(task_id: str) -> str:
         return COHORT_WORKLOAD
     if task_id == POKER_TASK:
         return STRATEGY_WORKLOAD
+    if task_id == SPECTRUM_TASK:
+        return REGISTRY_WORKLOAD
     return WORKLOAD
 
 
@@ -108,6 +112,8 @@ def id_slug(task_id: str) -> str:
         return "cohort"
     if task_id == POKER_TASK:
         return "poker"
+    if task_id == SPECTRUM_TASK:
+        return "spectrum"
     return "codebase"
 
 

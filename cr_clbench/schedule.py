@@ -158,6 +158,37 @@ def cohort_smoke_arguments(kwargs: dict) -> tuple[dict, bool]:
     return updated, True
 
 
+# Two scans of the frozen mixed-grid corpus. Scan 2 is the turn that carries
+# "Scan 1 recorded." and the next peak list back to the model.
+SPECTRUM_SMOKE_SCANS = 2
+
+
+def spectrum_smoke_arguments(kwargs: dict) -> tuple[dict, bool]:
+    """Load the default frozen corpus, then keep the first two scans.
+
+    The corpus metadata requires the default stage lengths. ``quick_test``
+    is not a schedule file, so the task is constructed as ``default`` and
+    shortened after the scans are generated.
+    """
+    if kwargs.get("schedule") != "quick_test":
+        return kwargs, False
+    updated = dict(kwargs)
+    updated["schedule"] = "default"
+    return updated, True
+
+
+def apply_spectrum_smoke(task: object) -> None:
+    """Keep the smoke on the first two frozen scans."""
+    if not getattr(task, "_cr_spectrum_smoke", False):
+        return
+    scans = list(getattr(task, "_scans", []) or [])
+    if scans:
+        task._scans = scans[:SPECTRUM_SMOKE_SCANS]  # type: ignore[attr-defined]
+        task.instances = list(task._scans)  # type: ignore[attr-defined]
+    task.num_instances = SPECTRUM_SMOKE_SCANS  # type: ignore[attr-defined]
+    task.stated_horizon = SPECTRUM_SMOKE_SCANS  # type: ignore[attr-defined]
+
+
 def apply_database_smoke(task: object) -> None:
     """Keep the smoke on the first question of the original database.
 

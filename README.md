@@ -2,7 +2,7 @@
 
 Score **ICL + GLM 5.3 Flash** on [Continual Learning Bench](https://continual-learning-bench.com/) through the Based Models causal-reflection API. The harness is stock [continual-learning-bench](https://github.com/pgasawa/continual-learning-bench) at `5f8c50eb1e84b2eda2ef4faff757dfc812a0ea26`. This repo subclasses its ICL system. It does not copy ICL.
 
-The finished domains so far are Codebase Adaptation (`X-Workload: coding`), Database Exploration (`X-Workload: query`), Sales Prediction (`X-Workload: forecast`), Cohort Studies (`X-Workload: cohort`), and Exploitable Poker (`X-Workload: strategy`). Spectrum stays out until its pack exists.
+The finished domains so far are Codebase Adaptation (`X-Workload: coding`), Database Exploration (`X-Workload: query`), Sales Prediction (`X-Workload: forecast`), Cohort Studies (`X-Workload: cohort`), Exploitable Poker (`X-Workload: strategy`), and Blind Spectrum Monitoring (`X-Workload: registry`).
 
 The comparison is retained state under the same wrapper. A new session starts with an empty graph and still receives the causal prefix and readout tail. The stateful rollout keeps one session across instances. The stateless baseline starts a new session for every instance.
 
@@ -11,7 +11,7 @@ The comparison is retained state under the same wrapper. A new session starts wi
 | Stateful rollout | `reset_between_instances=False` | `clbench-{slug}-glm-stateful-r{run}-{task}` |
 | Stateless baseline | baseline phase, reset between instances | `clbench-{slug}-glm-stateless-r0-{task}-{instance_id}` |
 
-`slug` is `codebase`, `database`, `sales`, `cohort`, or `poker`. The task id is `codebase_adaptation`, `database_exploration`, `sales_prediction`, `cohort_studies`, or `exploitable_poker`.
+`slug` is `codebase`, `database`, `sales`, `cohort`, `poker`, or `spectrum`. The task id is `codebase_adaptation`, `database_exploration`, `sales_prediction`, `cohort_studies`, `exploitable_poker`, or `blind_spectrum_monitoring`.
 
 `{run}` is 1-based. Rollout repeat 0 is `r1`. The baseline is `r0`. A new rollout repeat gets a new session. Set `CLBENCH_RUN_TAG` when a repeated smoke should not resume an existing `r0` or `r1` graph.
 
@@ -19,7 +19,7 @@ Leaderboard name: **ICL + GLM 5.3 Flash**. Model id: `glm-5.3-flash:causal-refle
 
 ## What this run scores
 
-Codebase Adaptation, Database Exploration, Sales Prediction, Cohort Studies, and Exploitable Poker. Each domain is one `cr-clbench run`. `run-all` stays rejected: it would start every domain at once, and it does not adopt a trace that already finished.
+Codebase Adaptation, Database Exploration, Sales Prediction, Cohort Studies, Exploitable Poker, and Blind Spectrum Monitoring. Each domain is one `cr-clbench run`. `run-all` stays rejected: it would start every domain at once, and it does not adopt a trace that already finished.
 
 The coding pack reads the assistant JSON `command` field as the shell command. An edge needs the next user message in that same session to contain a real runner footer: a pytest line such as `3 passed in 0.42s`, a vitest `Tests` line, or a Go `ok <pkg>` / `FAIL <pkg>` line. The wrapper keeps the environment's raw command output in that user message. A pipe, a trailing `&`, or `head`/`tail` on the command hides the runner result from the encoder.
 
@@ -30,6 +30,8 @@ The forecast pack reads a bash `command` during analysis and a `predictions` lis
 The cohort pack reads the tool result in the user message. A `=== Columns ===` listing and a grouped `S(12m)=` table become edges. The KL section does not. `Report submitted for <STUDY>.` drops that study's column facts and stores nothing for the 108 survival numbers.
 
 The strategy pack reads the user message. A decision prompt stores `Opponent: Tom` and writes nothing. `Action taken` writes nothing. `Net chip change this hand` is booked to the opponent stored from the decision prompt, then a `NOTICE` or the next `Opponent:` line becomes the seated name. One edge per opponent carries the running chip total. An auto-resolved hand after `Additional auto-resolved hand while advancing to the next prompt:` is booked to the notice name.
+
+The registry pack reads `freq:` lines between `Detected peaks:` and `Band:`. `Scan N recorded.` writes nothing. A peak within 4 MHz of a stored center is that center. A new center is quantized to 0.5 MHz. The first sight is stored and writes no edge. The second sight of that center writes one edge, `defines seen_N <center>`, and a later sight replaces it. A scan with no peaks leaves every center in place. The model's own transmitter list is not the evidence.
 
 ## Codebase Adaptation result to keep
 
@@ -233,6 +235,27 @@ cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/pok
 ```
 
 `max_workers` stays 1. The stateful session is `clbench-poker-glm-stateful-r1-<tag>-exploitable_poker`. Reusing a tag resumes that graph. An action string other than `FOLD`, `CALL`, `CHECK`, or `RAISE` is returned to the task, which rejects it and repeats the decision. A reply with no action string stops the run.
+
+## Blind Spectrum Monitoring
+
+Each scan is one transmitter report. No Docker image. The frozen `mixed_grid_lifecycle` corpus, the default schedule, the three variants, and the Jinja templates are in the bench checkout. Deploy the API build that contains the registry pack before the first call. `repeat_instructions` stays false, matching the official ICL config, so the long instructions appear only on scan 1.
+
+Smoke is the first two scans of that corpus. Scan 2 is the turn that sends `Scan 1 recorded.` and the next peak list. One full pass is 90 scans. Five repeats use a new tag. The header must be `registry`. `spectrum` and the task name fall through to the generic pack.
+
+```bash
+export CLBENCH_RUN_TAG=spectrum-smoke
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/spectrum_glm_smoke.json
+```
+
+```bash
+export CLBENCH_RUN_TAG=spectrum-full1
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/spectrum_glm.json --runs 1
+
+export CLBENCH_RUN_TAG=spectrum-runs5
+cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/spectrum_glm.json --runs 5
+```
+
+`max_workers` stays 1. The stateful session is `clbench-spectrum-glm-stateful-r1-<tag>-blind_spectrum_monitoring`. Reusing a tag resumes that graph. A report is a `transmitters` list, and an empty list is a legal report. A reply with no list stops the run.
 
 ## Layout
 

@@ -19,7 +19,9 @@ from cr_clbench.schedule import (
     SMOKE_INSTANCE_ID,
     apply_database_smoke,
     apply_sales_smoke,
+    apply_spectrum_smoke,
     cohort_smoke_arguments,
+    spectrum_smoke_arguments,
 )
 
 
@@ -55,6 +57,35 @@ def test_database_quick_test_is_one_question_and_turns_drift_off():
     assert task._schema_drift_enabled is False
     assert task.num_questions == 1
     assert task.num_instances == 1
+
+
+def test_spectrum_smoke_loads_default_and_keeps_two_scans():
+    updated, smoke = spectrum_smoke_arguments({"schedule": "quick_test", "corpus_id": "mixed_grid_lifecycle"})
+    assert smoke is True
+    assert updated["schedule"] == "default"
+    assert updated["corpus_id"] == "mixed_grid_lifecycle"
+    plain, not_smoke = spectrum_smoke_arguments({"schedule": "default"})
+    assert not_smoke is False
+    assert plain["schedule"] == "default"
+
+    class _Task:
+        _cr_spectrum_smoke = True
+        _scans = ["scan-1", "scan-2", "scan-3"]
+        instances = ["scan-1", "scan-2", "scan-3"]
+        num_instances = 90
+        stated_horizon = 90
+
+    task = _Task()
+    apply_spectrum_smoke(task)
+    assert task._scans == ["scan-1", "scan-2"]
+    assert task.instances == ["scan-1", "scan-2"]
+    assert task.num_instances == 2
+    assert task.stated_horizon == 2
+
+    untouched = _Task()
+    untouched._cr_spectrum_smoke = False
+    apply_spectrum_smoke(untouched)
+    assert untouched.num_instances == 90
 
 
 def test_database_smoke_keeps_the_schedule_parameter():

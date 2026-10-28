@@ -25,9 +25,8 @@ def test_other_systems_are_rejected():
         _ensure_system(["run", "--system", "ace"])
 
 
-def test_other_domains_are_rejected():
-    with pytest.raises(SystemExit, match="codebase_adaptation"):
-        _reject_other_domains(["run", "blind_spectrum_monitoring", "--system", "icl"])
+def test_spectrum_name_is_accepted():
+    _reject_other_domains(["run", "blind_spectrum_monitoring", "--system", "icl"])
 
 
 def test_database_exploration_config_is_accepted(tmp_path: Path):
@@ -38,8 +37,13 @@ def test_database_exploration_config_is_accepted(tmp_path: Path):
     _reject_other_domains(["run", "--config", str(path)])
 
 
-def test_sales_cohort_and_poker_configs_are_accepted(tmp_path: Path):
-    for name in ("sales_prediction", "cohort_studies", "exploitable_poker"):
+def test_sales_cohort_poker_and_spectrum_configs_are_accepted(tmp_path: Path):
+    for name in (
+        "sales_prediction",
+        "cohort_studies",
+        "exploitable_poker",
+        "blind_spectrum_monitoring",
+    ):
         path = tmp_path / f"{name}.json"
         path.write_text(json.dumps({"task": {"name": name, "params": {"schedule": "default"}}}))
         _reject_other_domains(["run", "--config", str(path)])
@@ -47,7 +51,7 @@ def test_sales_cohort_and_poker_configs_are_accepted(tmp_path: Path):
 
 def test_config_for_another_task_is_rejected(tmp_path: Path):
     path = tmp_path / "other.json"
-    path.write_text(json.dumps({"task": {"name": "blind_spectrum_monitoring"}}))
+    path.write_text(json.dumps({"task": {"name": "not_a_domain"}}))
     with pytest.raises(SystemExit, match="Supported tasks"):
         _reject_other_domains(["run", "--config", str(path)])
 

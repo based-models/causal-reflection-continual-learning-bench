@@ -151,6 +151,28 @@ def test_poker_sessions_use_the_strategy_workload():
     assert "codebase" not in session_id
 
 
+def test_spectrum_sessions_use_the_registry_workload():
+    run_id, session_id = build_ids(
+        kind="stateful",
+        run_index=0,
+        task_id="blind_spectrum_monitoring",
+        instance_id=None,
+    )
+    _, stateless = build_ids(
+        kind="stateless",
+        run_index=None,
+        task_id="blind_spectrum_monitoring",
+        instance_id="blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1",
+    )
+    assert run_id == "clbench-spectrum-glm-r1"
+    assert session_id == "clbench-spectrum-glm-stateful-r1-blind_spectrum_monitoring"
+    assert stateless.endswith(
+        "blind_spectrum_monitoring:five_ch_wide:corpus:mixed_grid_lifecycle:scan:1"
+    )
+    assert workload_for("blind_spectrum_monitoring") == "registry"
+    assert workload_for("spectrum") == "coding"
+
+
 def test_headers_always_carry_session_run_and_workload():
     headers = causal_headers(
         kind="stateful",

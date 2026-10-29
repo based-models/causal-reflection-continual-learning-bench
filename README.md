@@ -35,7 +35,7 @@ The registry pack reads `freq:` lines between `Detected peaks:` and `Band:`. `Sc
 
 ## Codebase Adaptation result to keep
 
-Five-run group `2026-10-25T15-56-07.908259Z`, tag `runs5b`, on `deep-swe-bench-run`. This is the Codebase Adaptation piece of a later submission. Do not re-run it.
+Five-run group `2026-10-25T15-56-07.908259Z`, tag `runs5b`. This is the Codebase Adaptation piece of a later submission. Do not re-run it.
 
 ```text
 ~/continual-learning-bench/results/codebase_adaptation/traces/2026-10-25T15-56-07.908259Z
@@ -60,8 +60,6 @@ Every completion sends `X-Session-Id`, `X-Run-Id`, and `X-Workload` (`coding`, `
 
 Price registered for the model id the bench looks up, per million tokens: input `$0.15`, cached input `$0.03`, output `$0.50`. The bench reads `prompt_tokens`, `completion_tokens`, and `prompt_tokens_details.cached_tokens`. A missing cache count is 0. The ICL context budget is set to **913,408** tokens: GLM 5.3 Flash's 1,048,576 window, minus the 131,072 output cap and 4,096 tokens for the causal prefix and readout tail.
 
-`MONTHLY_SPEND_CAP_USD` for this campaign is $1000 on the API VM. A cap rejection is an API limit.
-
 If a completion drops `response_format`, or the reply does not match the task schema, the run stops. Leave the causal prefix on.
 
 ## Upstream schedule
@@ -72,7 +70,7 @@ A non-editable install of the bench keeps the Python modules and drops `schedule
 
 ## Bench VM
 
-Use `deep-swe-bench-run` in `us-west1-b`. The model API stays on `cr-model-api-poc`. This bench VM needs Docker: Codebase Adaptation executes in a container, and model calls go out from the host to `https://api.basedmodels.com`.
+Used GCP VM in `us-west1-b`. This bench VM needs Docker: Codebase Adaptation executes in a container, and model calls go out from the host to `https://api.basedmodels.com`.
 
 Python **3.13**. On Debian, `python3` may already be 3.13. On Ubuntu 22.04, install 3.13 before `uv` or `venv`.
 
@@ -271,7 +269,7 @@ tests/
 
 | Repo | Role |
 |---|---|
-| [cr-model-api-poc](https://github.com/based-models/cr-model-api-poc) | Production API. Unchanged by this run. |
+| [cr-model-api-poc](https://github.com/based-models/cr-model-api-poc) | (Private Repo) Production API. Unchanged by this run. |
 | [continual-learning-bench](https://github.com/pgasawa/continual-learning-bench) | Harness and Codebase Adaptation task. |
-| [causal-reflection-terminal-bench](https://github.com/based-models/causal-reflection-terminal-bench) | Same API, Harbor Terminus, `X-Workload: coding`. |
-| [causal-reflection-tau2-bench](https://github.com/based-models/causal-reflection-tau2-bench) | Same API, `X-Workload: tool-use`. |
+| [causal-reflection-terminal-bench](https://github.com/based-models/causal-reflection-terminal-bench) | (Private Repo) Same API, Harbor Terminus, `X-Workload: coding`. |
+| [causal-reflection-tau2-bench](https://github.com/based-models/causal-reflection-tau2-bench) | (Private Repo) Same API, `X-Workload: tool-use`. |

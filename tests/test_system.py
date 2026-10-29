@@ -668,4 +668,4 @@ def test_context_budget_is_explicit():
     system = CausalReflectionICL()
     assert system.max_tokens == 913_408
     assert system.model == "openai/glm-5.3-flash:causal-reflection"
-    assert system.name == "ICL + GLM 5.3 Flash"
+    assert system.name == "ICL · GLM 5.3 Flash Causal Reflection"

@@ -1,6 +1,6 @@
 # Causal reflection on Continual Learning Bench
 
-Score **ICL + GLM 5.3 Flash** on [Continual Learning Bench](https://continual-learning-bench.com/) through the Based Models causal-reflection API. The harness is stock [continual-learning-bench](https://github.com/pgasawa/continual-learning-bench) at `5f8c50eb1e84b2eda2ef4faff757dfc812a0ea26`. This repo subclasses its ICL system. It does not copy ICL.
+Score **ICL · GLM 5.3 Flash Causal Reflection** on [Continual Learning Bench](https://continual-learning-bench.com/) through the Based Models causal-reflection API. The harness is stock [continual-learning-bench](https://github.com/pgasawa/continual-learning-bench) at `5f8c50eb1e84b2eda2ef4faff757dfc812a0ea26`. This repo subclasses its ICL system. It does not copy ICL.
 
 The finished domains so far are Codebase Adaptation (`X-Workload: coding`), Database Exploration (`X-Workload: query`), Sales Prediction (`X-Workload: forecast`), Cohort Studies (`X-Workload: cohort`), Exploitable Poker (`X-Workload: strategy`), and Blind Spectrum Monitoring (`X-Workload: registry`).
 
@@ -15,7 +15,7 @@ The comparison is retained state under the same wrapper. A new session starts wi
 
 `{run}` is 1-based. Rollout repeat 0 is `r1`. The baseline is `r0`. A new rollout repeat gets a new session. Set `CLBENCH_RUN_TAG` when a repeated smoke should not resume an existing `r0` or `r1` graph.
 
-Leaderboard name: **ICL + GLM 5.3 Flash**. Model id: `glm-5.3-flash:causal-reflection`.
+Leaderboard name: **ICL · GLM 5.3 Flash Causal Reflection**. Model id: `glm-5.3-flash:causal-reflection`. Submission folder, display map, and the six viewer paths are in [docs/SUBMISSION.md](docs/SUBMISSION.md).
 
 ## What this run scores
 
@@ -263,6 +263,7 @@ cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/spe
 cr_clbench/          # ICL subclass, headers, price entry, quick_test schedule
 configs/             # smoke (quick_test) and default schedule
 docs/MODEL_API_ALIGNMENT.md
+docs/SUBMISSION.md
 tests/
 ```
 

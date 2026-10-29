@@ -5,7 +5,7 @@
       "model": "openai/glm-5.3-flash:causal-reflection",
       "provider_mode": "litellm_chat",
       "max_tokens": 913408,
-      "name": "ICL + GLM 5.3 Flash"
+      "name": "ICL · GLM 5.3 Flash Causal Reflection"
     }
   },
   "task": {

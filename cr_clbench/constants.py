@@ -3,7 +3,7 @@
 API_BASE = "https://api.basedmodels.com/v1"
 PUBLIC_MODEL_ID = "glm-5.3-flash:causal-reflection"
 LITELLM_MODEL = f"openai/{PUBLIC_MODEL_ID}"
-LEADERBOARD_NAME = "ICL + GLM 5.3 Flash"
+LEADERBOARD_NAME = "ICL · GLM 5.3 Flash Causal Reflection"
 TASK_NAME = "codebase_adaptation"
 DATABASE_TASK = "database_exploration"
 SALES_TASK = "sales_prediction"

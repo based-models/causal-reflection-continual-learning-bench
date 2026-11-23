@@ -75,6 +75,16 @@ def sanitize_id(value: str) -> str:
     return cleaned
 
 
+def model_slug() -> str:
+    """Model piece of the session id. GLM stays the default.
+
+    Set ``CLBENCH_MODEL_SLUG=inkling`` for Inkling runs. A new slug starts a
+    new graph, so an Inkling tag cannot resume a GLM session.
+    """
+    raw = (os.environ.get("CLBENCH_MODEL_SLUG") or "glm").strip()
+    return sanitize_id(raw)
+
+
 def run_tag() -> str:
     """Optional suffix so a repeated smoke starts a new graph.
 
@@ -130,14 +140,17 @@ def build_ids(
     suffix = f"-{tag}" if tag else ""
     task = sanitize_id(task_id)
     slug = id_slug(task_id)
-    run_id = f"clbench-{slug}-glm-r{label}{suffix}"
+    model = model_slug()
+    run_id = f"clbench-{slug}-{model}-r{label}{suffix}"
     if kind == "stateful":
-        session_id = f"clbench-{slug}-glm-stateful-r{label}{suffix}-{task}"
+        session_id = f"clbench-{slug}-{model}-stateful-r{label}{suffix}-{task}"
         return run_id, session_id
     if not instance_id:
         raise ValueError("stateless session requires an instance id")
     instance = sanitize_id(instance_id)
-    session_id = f"clbench-{slug}-glm-stateless-r{label}{suffix}-{task}-{instance}"
+    session_id = (
+        f"clbench-{slug}-{model}-stateless-r{label}{suffix}-{task}-{instance}"
+    )
     return run_id, session_id
 
 

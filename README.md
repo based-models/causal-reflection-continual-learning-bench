@@ -255,6 +255,38 @@ cr-clbench run --config ~/causal-reflection-continual-learning-bench/configs/spe
 
 `max_workers` stays 1. The stateful session is `clbench-spectrum-glm-stateful-r1-<tag>-blind_spectrum_monitoring`. Reusing a tag resumes that graph. A report is a `transmitters` list, and an empty list is a legal report. A reply with no list stops the run.
 
+## Inkling 2 Small
+
+Same six domains, through `inkling-2-small:causal-reflection` (Together `thinkingmachines/Inkling-2-Small`). List price per million tokens: input `$0.30`, cached input `$0.03`, output `$1.00`. The context window is 1,048,576 tokens. The prompt budget stays **913,408**, the same reservation used for GLM.
+
+`scripts/run_inkling.sh` sets `CLBENCH_MODEL_SLUG=inkling` and a new `CLBENCH_RUN_TAG`. Session ids look like `clbench-codebase-inkling-stateful-r1-<tag>-codebase_adaptation`. They do not resume a GLM graph. Do not reuse a tag.
+
+Leaderboard name: **ICL · Inkling 2 Small Causal Reflection**.
+
+On `deep-swe-bench-run`, from the bench checkout, after this repo is on `blind-spectrum-glm-runner`:
+
+```bash
+cd ~/continual-learning-bench
+source .venv/bin/activate
+export CLBENCH_ROOT=~/continual-learning-bench
+set -a && source ~/causal-reflection-continual-learning-bench/.env && set +a
+screen -S clbench
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh codebase smoke
+```
+
+Smoke one domain first. A five-run uses the same script with `runs5`:
+
+```bash
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh codebase runs5
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh database runs5
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh sales runs5
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh cohort runs5
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh poker runs5
+~/causal-reflection-continual-learning-bench/scripts/run_inkling.sh spectrum runs5
+```
+
+Run one domain at a time. `max_workers` stays 1. `full1` is the one-pass form of the same command.
+
 ## Layout
 
 ```text

@@ -1,0 +1,19 @@
+{
+  "system": {
+    "name": "icl",
+    "params": {
+      "model": "openai/inkling-2-small:causal-reflection",
+      "provider_mode": "litellm_chat",
+      "max_tokens": 913408,
+      "name": "ICL · Inkling 2 Small Causal Reflection"
+    }
+  },
+  "task": {
+    "name": "sales_prediction",
+    "params": {
+      "schedule": "default",
+      "repeat_instructions": false
+    }
+  },
+  "max_workers": 1
+}

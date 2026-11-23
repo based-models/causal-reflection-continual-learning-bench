@@ -1,0 +1,20 @@
+{
+  "system": {
+    "name": "icl",
+    "params": {
+      "model": "openai/inkling-2-small:causal-reflection",
+      "provider_mode": "litellm_chat",
+      "max_tokens": 913408,
+      "name": "ICL · Inkling 2 Small Causal Reflection"
+    }
+  },
+  "task": {
+    "name": "blind_spectrum_monitoring",
+    "params": {
+      "schedule": "default",
+      "corpus_id": "mixed_grid_lifecycle",
+      "repeat_instructions": false
+    }
+  },
+  "max_workers": 1
+}

@@ -42,5 +42,22 @@ INPUT_USD_PER_MILLION = 0.15
 CACHED_INPUT_USD_PER_MILLION = 0.03
 OUTPUT_USD_PER_MILLION = 0.50
 
+# Together lists Inkling 2 Small at 1,048,576 context tokens and does not publish
+# a separate completion cap. Reserve the same output cap used for GLM so the
+# prompt budget still leaves room for a completion and the causal wrapper.
+# https://www.together.ai/models/inkling-2-small
+INKLING_PUBLIC_MODEL_ID = "inkling-2-small:causal-reflection"
+INKLING_LITELLM_MODEL = f"openai/{INKLING_PUBLIC_MODEL_ID}"
+INKLING_LEADERBOARD_NAME = "ICL · Inkling 2 Small Causal Reflection"
+INKLING_CONTEXT_WINDOW_TOKENS = 1_048_576
+INKLING_MAX_OUTPUT_TOKENS = MAX_OUTPUT_TOKENS
+INKLING_CONTEXT_BUDGET_TOKENS = (
+    INKLING_CONTEXT_WINDOW_TOKENS - INKLING_MAX_OUTPUT_TOKENS - CAUSAL_WRAPPER_TOKENS
+)
+# Per million tokens: input $0.30, cached input $0.03, output $1.00.
+INKLING_INPUT_USD_PER_MILLION = 0.30
+INKLING_CACHED_INPUT_USD_PER_MILLION = 0.03
+INKLING_OUTPUT_USD_PER_MILLION = 1.00
+
 # The coding encoder classifies the first 2,000 characters of a plain-text user message.
 OBSERVATION_HEAD_CHARS = 2_000

@@ -3,7 +3,12 @@
 import pytest
 from src.usage import build_usage_event, build_usage_event_from_response
 
-from cr_clbench.constants import LITELLM_MODEL, PUBLIC_MODEL_ID
+from cr_clbench.constants import (
+    INKLING_LITELLM_MODEL,
+    INKLING_PUBLIC_MODEL_ID,
+    LITELLM_MODEL,
+    PUBLIC_MODEL_ID,
+)
 from cr_clbench.pricing import register_prices
 
 
@@ -50,6 +55,19 @@ def test_public_id_is_in_the_rate_table_the_bench_looks_up():
     assert rates["input_cost_per_token"] == 0.15 / 1_000_000
     assert rates["cache_read_input_token_cost"] == 0.03 / 1_000_000
     assert rates["output_cost_per_token"] == 0.50 / 1_000_000
+
+
+def test_inkling_rates_are_registered_beside_glm():
+    from src.usage import _lookup_model_rates
+
+    rates = _lookup_model_rates(INKLING_LITELLM_MODEL, None)
+    assert rates is not None
+    assert rates["input_cost_per_token"] == 0.30 / 1_000_000
+    assert rates["cache_read_input_token_cost"] == 0.03 / 1_000_000
+    assert rates["output_cost_per_token"] == 1.00 / 1_000_000
+    bare = _lookup_model_rates(INKLING_PUBLIC_MODEL_ID, None)
+    assert bare is not None
+    assert bare["input_cost_per_token"] == 0.30 / 1_000_000
 
 
 def test_response_usage_still_fills_cost_usd():

@@ -151,7 +151,7 @@ class CausalReflectionICL(ICLSystem):
     def get_run_artifacts(self) -> dict:
         payload = super().get_run_artifacts()
         payload["causal_sessions"] = list(dict.fromkeys(self._session_ids))
-        payload["leaderboard_name"] = LEADERBOARD_NAME
+        payload["leaderboard_name"] = self.name
         return payload
 
     def _task_id(self) -> str:

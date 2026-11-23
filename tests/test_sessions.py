@@ -200,6 +200,7 @@ def test_rollout_phase_is_stateful():
 
 def test_run_tag_appends_without_changing_the_default(monkeypatch):
     monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.delenv("CLBENCH_MODEL_SLUG", raising=False)
     _, plain = build_ids(
         kind="stateful",
         run_index=0,
@@ -215,6 +216,19 @@ def test_run_tag_appends_without_changing_the_default(monkeypatch):
     )
     assert plain == "clbench-codebase-glm-stateful-r1-codebase_adaptation"
     assert tagged == "clbench-codebase-glm-stateful-r1-smoke2-codebase_adaptation"
+
+
+def test_inkling_slug_does_not_resume_a_glm_graph(monkeypatch):
+    monkeypatch.delenv("CLBENCH_RUN_TAG", raising=False)
+    monkeypatch.setenv("CLBENCH_MODEL_SLUG", "inkling")
+    run_id, session_id = build_ids(
+        kind="stateful",
+        run_index=0,
+        task_id="codebase_adaptation",
+        instance_id=None,
+    )
+    assert run_id == "clbench-codebase-inkling-r1"
+    assert session_id == "clbench-codebase-inkling-stateful-r1-codebase_adaptation"
 
 
 def test_stateless_requires_an_instance_id():

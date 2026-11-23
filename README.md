@@ -72,7 +72,7 @@ A non-editable install of the bench keeps the Python modules and drops `schedule
 
 ## Bench VM
 
-Use `deep-swe-bench-run` in `us-west1-b`. The model API stays on `cr-model-api-poc`. This bench VM needs Docker: Codebase Adaptation executes in a container, and model calls go out from the host to `https://api.basedmodels.com`.
+Use `deep-swe-bench-run-baseline` in `us-west1-b`. The model API stays on `cr-model-api-poc`. This bench VM needs Docker: Codebase Adaptation executes in a container, and model calls go out from the host to `https://api.basedmodels.com`.
 
 Python **3.13**. On Debian, `python3` may already be 3.13. On Ubuntu 22.04, install 3.13 before `uv` or `venv`.
 
@@ -265,7 +265,7 @@ Same six domains, through `inkling-2-small:causal-reflection` (Together `thinkin
 
 Leaderboard name: **ICL · Inkling 2 Small Causal Reflection**.
 
-On `deep-swe-bench-run`, from the bench checkout, after this repo is on `blind-spectrum-glm-runner`:
+On `deep-swe-bench-run-baseline`, from the bench checkout, after this repo is on `blind-spectrum-glm-runner`:
 
 ```bash
 cd ~/continual-learning-bench

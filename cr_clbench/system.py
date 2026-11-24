@@ -166,22 +166,24 @@ class CausalReflectionICL(ICLSystem):
         if workload == "query":
             name = getattr(action, "action", None)
             content = getattr(action, "content", None)
-            if not isinstance(name, str) or name.strip().upper() not in {
-                "QUERY",
-                "ANSWER",
-            }:
-                raise CommandParseStop(
-                    "The parsed action is not QUERY or ANSWER. "
-                    "Stopping. Leave the causal prefix on."
-                )
-            if not isinstance(content, str) or (
-                name.strip().upper() == "QUERY" and not content.strip()
-            ):
+            if not isinstance(content, str):
                 raise CommandParseStop(
                     "QUERY has no SQL content. "
                     "Stopping. Leave the causal prefix on."
                 )
-            return
+            if isinstance(name, str) and name.strip().upper() == "QUERY" and not content.strip():
+                raise CommandParseStop(
+                    "QUERY has no SQL content. "
+                    "Stopping. Leave the causal prefix on."
+                )
+            # Any other action string belongs to the task. It tells the
+            # model to use QUERY or ANSWER and continues the question.
+            if isinstance(name, str) and name.strip():
+                return
+            raise CommandParseStop(
+                "The parsed action is not QUERY or ANSWER. "
+                "Stopping. Leave the causal prefix on."
+            )
         if workload == "forecast":
             command = getattr(action, "command", None)
             predictions = getattr(action, "predictions", None)

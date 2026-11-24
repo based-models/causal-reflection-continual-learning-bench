@@ -224,6 +224,39 @@ def test_query_turns_keep_the_sql_result_and_do_not_promote_a_runner_footer(monk
     assert calls[1]["response_format"] is _QueryAction
 
 
+def test_non_query_action_is_returned_to_the_task(monkeypatch):
+    monkeypatch.setenv("CRA_API_KEY", "test-key")
+    monkeypatch.setattr(
+        "src.systems.utils.structured_output._model_supports_response_format",
+        lambda model: True,
+    )
+    monkeypatch.setattr(
+        litellm,
+        "completion",
+        lambda **kwargs: _query_completion(
+            '{"action": "causal_prediction", "content": "schema drifted"}'
+        ),
+    )
+    system = CausalReflectionICL()
+    scope = RunScope(
+        phase="run",
+        reset_between_instances=False,
+        run_index=0,
+        task_name="database_exploration",
+    )
+    with override_scope(scope):
+        response = system.respond(
+            Query(
+                prompt="Question 1/1",
+                response_schema=_QueryAction,
+                instance_id="1",
+                instance_index=0,
+            )
+        )
+    assert response.action.action == "causal_prediction"
+    assert response.action.content == "schema drifted"
+
+
 def test_empty_query_sql_stops(monkeypatch):
     monkeypatch.setenv("CRA_API_KEY", "test-key")
     monkeypatch.setattr(

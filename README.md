@@ -263,7 +263,7 @@ Same six domains, through `inkling-2-small:causal-reflection` (Together `thinkin
 
 Leaderboard name: **ICL · Inkling 2 Small Causal Reflection**.
 
-On `deep-swe-bench-run`, from the bench checkout, after this repo is on `blind-spectrum-glm-runner`:
+On `deep-swe-bench-run-baseline`, from the bench checkout, after this repo is on `blind-spectrum-glm-runner`:
 
 ```bash
 cd ~/continual-learning-bench

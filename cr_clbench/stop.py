@@ -19,7 +19,9 @@ class CommandParseStop(CausalReflectionStop):
     """The completion did not match the task action schema.
 
     Codebase Adaptation requires ``command``. Database Exploration requires
-    ``action`` of ``QUERY`` or ``ANSWER``. Sales Prediction requires ``command``
+    an action string. An empty ``QUERY`` stops here. Any other action string
+    is returned to the task, which accepts ``QUERY`` and ``ANSWER`` and
+    rejects the rest itself. Sales Prediction requires ``command``
     or a ``predictions`` list. Cohort Studies requires ``tool_call`` or the
     flat survival submission. Exploitable Poker requires an action string.
     The task accepts ``FOLD``, ``CALL``, ``CHECK``, or ``RAISE`` and rejects
